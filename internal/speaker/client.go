@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -15,16 +16,12 @@ type Client struct {
 }
 
 func NewClient(addr string) *Client {
-	// If addr already contains a port (has ':'), use it as-is.
-	// Otherwise, append ':8090' for the speaker's default port.
-	if strings.Contains(addr, ":") {
-		return &Client{
-			baseURL: "http://" + addr,
-			http:    &http.Client{Timeout: 5 * time.Second},
-		}
+	host := addr
+	if !strings.Contains(addr, ":") {
+		host = addr + ":8090"
 	}
 	return &Client{
-		baseURL: "http://" + addr + ":8090",
+		baseURL: "http://" + host,
 		http:    &http.Client{Timeout: 5 * time.Second},
 	}
 }
@@ -63,7 +60,7 @@ func (c *Client) Select(streamURL, name string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { io.Copy(io.Discard, resp.Body); resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("select: speaker returned %d", resp.StatusCode)
 	}
@@ -90,7 +87,7 @@ func (c *Client) SetPreset(slot int, streamURL, name string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { io.Copy(io.Discard, resp.Body); resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("setPreset: speaker returned %d", resp.StatusCode)
 	}
@@ -104,7 +101,7 @@ func (c *Client) ProbePresetWrite() bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { io.Copy(io.Discard, resp.Body); resp.Body.Close() }()
 	return resp.StatusCode != http.StatusNotFound
 }
 
@@ -113,7 +110,7 @@ func (c *Client) GetInfo() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { io.Copy(io.Discard, resp.Body); resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("info: speaker returned %d", resp.StatusCode)
 	}
