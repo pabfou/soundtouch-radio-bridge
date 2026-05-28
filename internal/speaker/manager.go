@@ -43,8 +43,11 @@ func NewManagerForTest(httpAddr, wsAddr string, store *config.Store) *Manager {
 }
 
 func (m *Manager) Start(ctx context.Context) {
-	m.strategy1 = m.client.ProbePresetWrite()
-	if m.strategy1 {
+	s1 := m.client.ProbePresetWrite()
+	m.mu.Lock()
+	m.strategy1 = s1
+	m.mu.Unlock()
+	if s1 {
 		log.Println("speaker: Strategy 1 supported — syncing presets to speaker")
 		m.syncPresets()
 	} else {
@@ -103,7 +106,10 @@ func (m *Manager) Play(stationID string) error {
 // SyncPresets re-syncs all assigned presets to the speaker (Strategy 1).
 // No-op if Strategy 1 is not supported.
 func (m *Manager) SyncPresets() {
-	if m.strategy1 {
+	m.mu.RLock()
+	s1 := m.strategy1
+	m.mu.RUnlock()
+	if s1 {
 		m.syncPresets()
 	}
 }

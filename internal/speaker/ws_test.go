@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -76,15 +77,15 @@ func TestWSListener_UnknownEventIgnored(t *testing.T) {
 
 func TestWSListener_Reconnects(t *testing.T) {
 	// First connection closes immediately; second sends a preset event
-	callCount := 0
+	var callCount atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount++
+		n := callCount.Add(1)
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
 		defer conn.Close()
-		if callCount == 1 {
+		if n == 1 {
 			return // close immediately
 		}
 		msg := `<nowSelectionUpdated><preset id="2" /></nowSelectionUpdated>`
