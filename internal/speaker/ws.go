@@ -59,6 +59,11 @@ func (w *WSListener) connect(ctx context.Context) error {
 }
 
 func (w *WSListener) read(ctx context.Context, conn *websocket.Conn) {
+	// Close the connection when ctx is cancelled so ReadMessage unblocks.
+	go func() {
+		<-ctx.Done()
+		conn.Close()
+	}()
 	for {
 		_, data, err := conn.ReadMessage()
 		if err != nil {
