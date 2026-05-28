@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoundTouch Radio Bridge</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: #161b22; border-bottom: 1px solid #21262d; }
+  .header h1 { font-size: 15px; font-weight: 600; }
+  .badge { font-size: 11px; padding: 3px 10px; border-radius: 10px; font-weight: 600; }
+  .badge.online { background: #1a4a1a; color: #4ade80; }
+  .badge.offline { background: #4a1a1a; color: #f87171; }
+  .section { padding: 14px 16px; border-bottom: 1px solid #21262d; }
+  .section-title { font-size: 10px; font-weight: 700; color: #8b949e; letter-spacing: 1px; margin-bottom: 10px; }
+  .now-playing { display: flex; align-items: center; gap: 12px; background: #0d2a0d; border: 1px solid #1a4a1a; border-radius: 8px; padding: 12px; }
+  .now-playing-info { flex: 1; }
+  .now-playing-name { font-weight: 600; font-size: 14px; }
+  .now-playing-url { font-size: 11px; color: #4ade80; margin-top: 2px; }
+  .now-playing-empty { color: #8b949e; font-size: 13px; }
+  .preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .preset-btn { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; transition: border-color 0.15s; }
+  .preset-btn:hover { border-color: #3b82f6; }
+  .preset-btn.active { border: 2px solid #4ade80; background: #0d2a0d; }
+  .preset-btn.empty { border-style: dashed; }
+  .preset-num { font-size: 10px; font-weight: 700; color: #3b82f6; margin-bottom: 4px; }
+  .preset-name { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .preset-empty-label { font-size: 11px; color: #484f58; }
+  .station-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+  .station-row { display: flex; align-items: center; gap: 10px; background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 8px 10px; }
+  .station-row.playing { border-color: #1a4a1a; background: #0d2a0d; }
+  .station-name { flex: 1; font-size: 12px; font-weight: 600; }
+  .station-preset { font-size: 10px; color: #3b82f6; font-weight: 600; }
+  .btn { border: none; border-radius: 5px; padding: 5px 10px; font-size: 11px; cursor: pointer; font-weight: 600; }
+  .btn-play { background: #1a3a1a; border: 1px solid #2a5a2a; color: #4ade80; }
+  .btn-play:hover { background: #2a5a2a; }
+  .btn-menu { background: #1c2128; border: 1px solid #21262d; color: #8b949e; }
+  .btn-add { background: #1d4ed8; color: white; }
+  .btn-add:hover { background: #2563eb; }
+  .btn-stop { background: #4a1a1a; border: 1px solid #6a2a2a; color: #f87171; }
+  .add-row { display: flex; gap: 6px; }
+  .add-input { flex: 1; background: #161b22; border: 1px solid #21262d; color: #e6edf3; border-radius: 5px; padding: 7px 10px; font-size: 12px; }
+  .add-input:focus { outline: none; border-color: #3b82f6; }
+  .add-name-input { width: 100%; background: #161b22; border: 1px solid #21262d; color: #e6edf3; border-radius: 5px; padding: 7px 10px; font-size: 12px; margin-bottom: 6px; }
+  .add-name-input:focus { outline: none; border-color: #3b82f6; }
+  .help-text { font-size: 10px; color: #484f58; margin-top: 4px; }
+  .search-results { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; max-height: 200px; overflow-y: auto; }
+  .search-result { display: flex; align-items: center; gap: 8px; background: #161b22; border: 1px solid #21262d; border-radius: 5px; padding: 7px 10px; cursor: pointer; }
+  .search-result:hover { border-color: #3b82f6; }
+  .search-result-name { flex: 1; font-size: 12px; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #161b22; border: 1px solid #21262d; border-radius: 10px; width: 90%; max-width: 380px; overflow: hidden; }
+  .modal-header { background: #0d1117; padding: 12px 16px; font-size: 12px; font-weight: 700; color: #3b82f6; border-bottom: 1px solid #21262d; }
+  .modal-body { padding: 14px 16px; }
+  .current-assignment { display: flex; align-items: center; gap: 10px; background: #0d2a0d; border: 1px solid #1a4a1a; border-radius: 8px; padding: 10px; margin-bottom: 14px; }
+  .current-label { font-size: 10px; color: #4ade80; font-weight: 600; }
+  .current-name { font-size: 13px; font-weight: 600; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .modal-actions .btn { flex: 1; padding: 8px; }
+  .btn-cancel { background: #1c2128; border: 1px solid #21262d; color: #8b949e; }
+  .btn-confirm { background: #1d4ed8; color: white; }
+  .btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-change { background: #1c2128; border: 1px solid #21262d; color: #8b949e; flex: 1; }
+  .picker-list { display: flex; flex-direction: column; gap: 5px; max-height: 250px; overflow-y: auto; }
+  .picker-item { display: flex; align-items: center; gap: 8px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
+  .picker-item:hover { border-color: #3b82f6; }
+  .picker-item.selected { border: 2px solid #3b82f6; background: #0d1a2a; }
+  .picker-item-name { flex: 1; font-size: 12px; font-weight: 600; }
+  .picker-item-preset { font-size: 10px; color: #3b82f6; font-weight: 600; }
+  .check { color: #3b82f6; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>SoundTouch Radio Bridge</h1>
+  <span id="badge" class="badge offline">● Offline</span>
+</div>
+
+<div class="section" id="now-playing-section">
+  <div class="section-title">NOW PLAYING</div>
+  <div class="now-playing">
+    <div style="font-size:28px">📻</div>
+    <div class="now-playing-info">
+      <div id="now-playing-name" class="now-playing-empty">Nothing playing</div>
+    </div>
+    <button class="btn btn-stop" id="btn-stop" style="display:none" onclick="stopPlayback()">■ Stop</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">PRESETS</div>
+  <div class="preset-grid" id="preset-grid"></div>
+</div>
+
+<div class="section">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div class="section-title" style="margin-bottom:0">STATIONS</div>
+    <button class="btn btn-add" onclick="document.getElementById('add-section').scrollIntoView({behavior:'smooth'})">+ Add</button>
+  </div>
+  <div class="station-list" id="station-list"></div>
+</div>
+
+<div class="section" id="add-section">
+  <div class="section-title">ADD STATION</div>
+  <input class="add-name-input" id="add-name" placeholder="Station name">
+  <div class="add-row">
+    <input class="add-input" id="add-url" placeholder="Search TuneIn or paste stream URL…">
+    <button class="btn btn-add" onclick="handleAddInput()">Search</button>
+  </div>
+  <div class="help-text">Paste a direct MP3/AAC/HLS URL to add without searching. Or type a station name and press Search.</div>
+  <div id="search-results" class="search-results"></div>
+</div>
+
+<!-- Preset modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header" id="modal-title">Preset</div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+let stations = [];
+let presets = {};
+let nowPlayingStationId = null;
+let modalSlot = null;
+let modalMode = 'view';
+let pickerSelected = null;
+
+async function fetchAll() {
+  try {
+    const [stRes, prRes, stRes2] = await Promise.all([
+      fetch('/api/stations'),
+      fetch('/api/presets'),
+      fetch('/api/status'),
+    ]);
+    stations = await stRes.json();
+    presets = await prRes.json();
+    const status = await stRes2.json();
+    updateBadge(status.online);
+    updateNowPlaying(status.nowPlaying);
+    renderPresets();
+    renderStations();
+  } catch(e) {
+    updateBadge(false);
+  }
+}
+
+function updateBadge(online) {
+  const b = document.getElementById('badge');
+  b.textContent = online ? '● Online' : '● Offline';
+  b.className = 'badge ' + (online ? 'online' : 'offline');
+}
+
+function updateNowPlaying(np) {
+  const el = document.getElementById('now-playing-name');
+  const stopBtn = document.getElementById('btn-stop');
+  if (np) {
+    el.textContent = np;
+    el.className = 'now-playing-name';
+    stopBtn.style.display = '';
+  } else {
+    el.textContent = 'Nothing playing';
+    el.className = 'now-playing-empty';
+    stopBtn.style.display = 'none';
+  }
+}
+
+function renderPresets() {
+  const grid = document.getElementById('preset-grid');
+  grid.innerHTML = '';
+  for (let i = 1; i <= 6; i++) {
+    const sid = presets[i] || presets[String(i)];
+    const st = sid ? stations.find(s => s.id === sid) : null;
+    const btn = document.createElement('div');
+    btn.className = 'preset-btn' + (st ? '' : ' empty') + (sid && sid === nowPlayingStationId ? ' active' : '');
+    btn.innerHTML = `<div class="preset-num">${i}</div>` +
+      (st ? `<div class="preset-name">${st.name}</div>` : `<div class="preset-empty-label">+ assign</div>`);
+    btn.onclick = () => openPresetModal(i);
+    grid.appendChild(btn);
+  }
+}
+
+function renderStations() {
+  const list = document.getElementById('station-list');
+  list.innerHTML = '';
+  if (stations.length === 0) {
+    list.innerHTML = '<div style="color:#484f58;font-size:12px;padding:8px 0">No stations yet. Add one below.</div>';
+    return;
+  }
+  stations.forEach(st => {
+    const assignedSlots = Object.entries(presets)
+      .filter(([,sid]) => sid === st.id)
+      .map(([slot]) => `Preset ${slot}`)
+      .join(', ');
+    const row = document.createElement('div');
+    row.className = 'station-row' + (st.id === nowPlayingStationId ? ' playing' : '');
+    row.innerHTML = `
+      <div style="font-size:18px">📻</div>
+      <div class="station-name">${st.name}</div>
+      ${assignedSlots ? `<div class="station-preset">${assignedSlots}</div>` : ''}
+      <button class="btn btn-play" onclick="playStation('${st.id}')">▶</button>
+      <button class="btn btn-menu" onclick="openStationMenu(event,'${st.id}')">⋯</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+async function playStation(id) {
+  await fetch('/api/play', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({stationId: id})});
+  nowPlayingStationId = id;
+  renderStations();
+  renderPresets();
+}
+
+async function stopPlayback() {
+  await fetch('/api/play', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({stationId: ''})});
+  nowPlayingStationId = null;
+  updateNowPlaying(null);
+  renderStations();
+}
+
+function openStationMenu(e, stationId) {
+  e.stopPropagation();
+  const choice = confirm('Delete this station?');
+  if (choice) deleteStation(stationId);
+}
+
+async function deleteStation(id) {
+  await fetch('/api/stations/' + id, {method:'DELETE'});
+  await fetchAll();
+}
+
+function openPresetModal(slot) {
+  modalSlot = slot;
+  pickerSelected = null;
+  const sid = presets[slot] || presets[String(slot)];
+  const st = sid ? stations.find(s => s.id === sid) : null;
+  if (st) {
+    modalMode = 'view';
+    showViewModal(slot, st);
+  } else {
+    modalMode = 'pick';
+    showPickerModal(slot, null);
+  }
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function showViewModal(slot, st) {
+  document.getElementById('modal-title').textContent = `Preset ${slot}`;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="current-assignment">
+      <div style="font-size:22px">📻</div>
+      <div>
+        <div class="current-label">Currently assigned</div>
+        <div class="current-name">${st.name}</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-play" style="flex:1" onclick="playStation('${st.id}');closeModal()">▶ Play now</button>
+      <button class="btn btn-change" onclick="showPickerModal(${slot}, '${st.id}')">Change…</button>
+    </div>
+  `;
+}
+
+function showPickerModal(slot, currentId) {
+  modalMode = 'pick';
+  pickerSelected = null;
+  const currentSt = currentId ? stations.find(s => s.id === currentId) : null;
+  document.getElementById('modal-title').textContent = currentSt
+    ? `Preset ${slot} — Change station`
+    : `Preset ${slot} — Assign station`;
+
+  const itemsHTML = stations.map(st => {
+    const assignedSlots = Object.entries(presets)
+      .filter(([,sid]) => sid === st.id)
+      .map(([s]) => `Preset ${s}`)
+      .join(', ');
+    return `<div class="picker-item" data-id="${st.id}" onclick="selectPickerItem(this,'${st.id}')">
+      <div style="font-size:14px">📻</div>
+      <div class="picker-item-name">${st.name}</div>
+      ${assignedSlots ? `<div class="picker-item-preset">${assignedSlots}</div>` : ''}
+      <div class="check" style="display:none">✓</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    ${currentSt ? `<div style="font-size:11px;color:#8b949e;margin-bottom:10px">Replace <strong style="color:#f87171">${currentSt.name}</strong>:</div>` : ''}
+    <div class="picker-list">${itemsHTML || '<div style="color:#484f58;font-size:12px">No stations in library. Add one first.</div>'}</div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-confirm" id="btn-confirm" disabled onclick="confirmAssign()">Assign</button>
+    </div>
+  `;
+}
+
+function selectPickerItem(el, id) {
+  document.querySelectorAll('.picker-item').forEach(i => {
+    i.classList.remove('selected');
+    i.querySelector('.check').style.display = 'none';
+  });
+  el.classList.add('selected');
+  el.querySelector('.check').style.display = '';
+  pickerSelected = id;
+  const st = stations.find(s => s.id === id);
+  const btn = document.getElementById('btn-confirm');
+  btn.disabled = false;
+  btn.textContent = `Assign ${st ? st.name : ''}`;
+}
+
+async function confirmAssign() {
+  if (!pickerSelected || !modalSlot) return;
+  await fetch('/api/presets', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({slot: modalSlot, stationId: pickerSelected})
+  });
+  closeModal();
+  await fetchAll();
+}
+
+function closeModal(event) {
+  if (event && event.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+  modalSlot = null;
+  pickerSelected = null;
+}
+
+async function handleAddInput() {
+  const urlInput = document.getElementById('add-url').value.trim();
+  const nameInput = document.getElementById('add-name').value.trim();
+
+  if (urlInput.startsWith('http')) {
+    if (!nameInput) { alert('Please enter a station name.'); return; }
+    await addStation(nameInput, urlInput, '');
+    document.getElementById('add-url').value = '';
+    document.getElementById('add-name').value = '';
+    document.getElementById('search-results').innerHTML = '';
+    await fetchAll();
+    return;
+  }
+
+  const q = urlInput || nameInput;
+  if (!q) return;
+  const res = await fetch('/api/search?q=' + encodeURIComponent(q));
+  if (!res.ok) { alert('Search failed. Try pasting a direct stream URL instead.'); return; }
+  const results = await res.json();
+  const container = document.getElementById('search-results');
+  container.innerHTML = '';
+  if (!results || results.length === 0) {
+    container.innerHTML = '<div style="color:#484f58;font-size:12px;padding:4px 0">No results. Try a direct URL.</div>';
+    return;
+  }
+  results.slice(0, 5).forEach(r => {
+    const el = document.createElement('div');
+    el.className = 'search-result';
+    el.innerHTML = `<div style="font-size:14px">📻</div><div class="search-result-name">${r.name || r.Name}</div><button class="btn btn-add">Add</button>`;
+    el.querySelector('button').onclick = async () => {
+      await addStation(r.name || r.Name, r.url || r.URL, r.logo || r.Logo || '');
+      container.innerHTML = '';
+      document.getElementById('add-url').value = '';
+      document.getElementById('add-name').value = '';
+      await fetchAll();
+    };
+    container.appendChild(el);
+  });
+}
+
+async function addStation(name, url, logo) {
+  await fetch('/api/stations', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, url, logo})
+  });
+}
+
+fetchAll();
+setInterval(fetchAll, 3000);
+</script>
+</body>
+</html>

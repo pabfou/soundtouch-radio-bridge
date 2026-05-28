@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -34,7 +35,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *config.Store, *mockManager)
 	store, _ := config.NewStore(filepath.Join(t.TempDir(), "config.yaml"))
 	mgr := &mockManager{online: true}
 	handler := api.NewHandler(store, mgr, nil)
-	srv := httptest.NewServer(api.NewRouter(handler))
+	srv := httptest.NewServer(api.NewRouter(handler, embed.FS{}))
 	t.Cleanup(srv.Close)
 	return srv, store, mgr
 }

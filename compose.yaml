@@ -1,0 +1,7 @@
+services:
+  bridge:
+    image: soundtouch-radio-bridge:latest
+    network_mode: host
+    volumes:
+      - ./config.yaml:/config.yaml
+    restart: unless-stopped

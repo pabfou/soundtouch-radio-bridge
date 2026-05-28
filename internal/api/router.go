@@ -1,10 +1,11 @@
 package api
 
 import (
+	"embed"
 	"net/http"
 )
 
-func NewRouter(h *Handler) http.Handler {
+func NewRouter(h *Handler, webFS embed.FS) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/stations", h.ListStations)
 	mux.HandleFunc("POST /api/stations", h.AddStation)
@@ -14,5 +15,6 @@ func NewRouter(h *Handler) http.Handler {
 	mux.HandleFunc("POST /api/play", h.Play)
 	mux.HandleFunc("GET /api/search", h.Search)
 	mux.HandleFunc("GET /api/status", h.Status)
+	mux.Handle("GET /", http.FileServer(http.FS(webFS)))
 	return mux
 }
