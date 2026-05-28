@@ -1,3 +1,5 @@
 config.yaml
 .superpowers/
 *.tmp
+presets.txt
+dist/

@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"soundtouch-radio-bridge/internal/api"
 	"soundtouch-radio-bridge/internal/config"
@@ -44,7 +45,30 @@ func main() {
 
 	cfg := store.Get()
 	if len(cfg.Speakers) == 0 {
-		log.Println("warning: no speakers configured in config.yaml")
+		log.Println("no speakers configured — running mDNS discovery (5s)")
+		discoverCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		found, err := speaker.Discover(discoverCtx, 5*time.Second)
+		cancel()
+		switch {
+		case err != nil:
+			log.Printf("discovery failed: %v — set the speaker IP in config.yaml manually", err)
+		case len(found) == 0:
+			log.Println("no speakers found on the LAN — set the speaker IP in config.yaml manually")
+		default:
+			spk := config.Speaker{Name: found[0].Name, IP: found[0].IP}
+			if err := store.SetSpeaker(spk); err != nil {
+				log.Printf("failed to save discovered speaker: %v", err)
+			} else {
+				log.Printf("auto-discovered speaker %q at %s — saved to config", spk.Name, spk.IP)
+			}
+			if len(found) > 1 {
+				log.Printf("note: %d other speakers also found; edit config.yaml to pick a different one", len(found)-1)
+				for _, f := range found[1:] {
+					log.Printf("  - %s at %s", f.Name, f.IP)
+				}
+			}
+			cfg = store.Get()
+		}
 	}
 
 	var mgr *speaker.Manager

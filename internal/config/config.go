@@ -148,6 +148,19 @@ func (s *Store) SetSpeakerIP(ip string) error {
 	return s.save()
 }
 
+// SetSpeaker replaces the first speaker entry (or adds one) with the given
+// name and IP. Used by startup auto-discovery.
+func (s *Store) SetSpeaker(spk Speaker) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.cfg.Speakers) == 0 {
+		s.cfg.Speakers = []Speaker{spk}
+	} else {
+		s.cfg.Speakers[0] = spk
+	}
+	return s.save()
+}
+
 func (s *Store) save() error {
 	data, err := yaml.Marshal(s.cfg)
 	if err != nil {
