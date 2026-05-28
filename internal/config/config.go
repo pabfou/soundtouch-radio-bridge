@@ -75,6 +75,9 @@ func (s *Store) Get() Config {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	cfg := s.cfg
+	speakers := make([]Speaker, len(s.cfg.Speakers))
+	copy(speakers, s.cfg.Speakers)
+	cfg.Speakers = speakers
 	stations := make([]Station, len(s.cfg.Stations))
 	copy(stations, s.cfg.Stations)
 	cfg.Stations = stations
@@ -108,7 +111,7 @@ func (s *Store) AddStation(st Station) error {
 func (s *Store) DeleteStation(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	filtered := s.cfg.Stations[:0]
+	filtered := make([]Station, 0, len(s.cfg.Stations))
 	for _, st := range s.cfg.Stations {
 		if st.ID != id {
 			filtered = append(filtered, st)
