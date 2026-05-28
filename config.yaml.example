@@ -1,14 +1,14 @@
 speakers:
   - name: Living Room
-    ip: 192.168.1.50   # change to your speaker's IP
+    ip: 192.168.1.50              # change to your speaker's IP
 
 stations:
-  - id: bbc-radio-4
-    name: BBC Radio 4
-    url: http://stream.live.vc.bbcmedia.co.uk/bbc_radio_fourfm
+  - id: france-inter
+    name: France Inter
+    url: http://direct.franceinter.fr/live/franceinter-midfi.mp3
 
 presets:
-  1: bbc-radio-4
+  1: france-inter
   2: null
   3: null
   4: null
