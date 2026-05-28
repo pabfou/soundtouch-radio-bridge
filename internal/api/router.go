@@ -16,6 +16,8 @@ func NewRouter(h *Handler, webFS embed.FS) *http.ServeMux {
 	mux.HandleFunc("POST /api/play", h.Play)
 	mux.HandleFunc("GET /api/search", h.Search)
 	mux.HandleFunc("GET /api/status", h.Status)
+	mux.HandleFunc("GET /stream/{id}", h.Stream)
+	mux.HandleFunc("HEAD /stream/{id}", h.Stream)
 
 	sub, err := fs.Sub(webFS, "web")
 	if err == nil {

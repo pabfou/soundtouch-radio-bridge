@@ -16,6 +16,10 @@ type Station struct {
 	Name string `yaml:"name" json:"name"`
 	URL  string `yaml:"url" json:"url"`
 	Logo string `yaml:"logo,omitempty" json:"logo,omitempty"`
+	// NeedsProxy is true when the upstream URL rejects HEAD probes (e.g. BBC).
+	// In that case the speaker is given the bridge's /stream/{id} URL instead
+	// of the upstream URL directly. Probed once when the station is added.
+	NeedsProxy bool `yaml:"needs_proxy,omitempty" json:"needsProxy,omitempty"`
 }
 
 type Speaker struct {

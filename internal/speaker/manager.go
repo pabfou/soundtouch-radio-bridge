@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,32 @@ type Manager struct {
 	mu         sync.RWMutex
 	nowPlaying string
 	strategy1  bool
+	// bridgeURL is set to e.g. "http://192.168.x.y:8080" if the bridge should
+	// proxy streams via /stream/{id}. Empty = send the upstream URL directly.
+	bridgeURL  string
+}
+
+// SetBridgeURL configures the bridge's own reachable URL so playback can be
+// routed through the /stream/{id} proxy.
+func (m *Manager) SetBridgeURL(u string) {
+	m.mu.Lock()
+	m.bridgeURL = u
+	m.mu.Unlock()
+}
+
+func (m *Manager) playbackURL(st config.Station) string {
+	m.mu.RLock()
+	b := m.bridgeURL
+	m.mu.RUnlock()
+	// SoundTouch 10 (2015 hardware) can't fetch HTTPS — always proxy those.
+	mustProxy := st.NeedsProxy || strings.HasPrefix(st.URL, "https://")
+	if !mustProxy || b == "" {
+		log.Printf("speaker: playing %q via direct URL %s", st.Name, st.URL)
+		return st.URL
+	}
+	proxy := b + "/stream/" + st.ID
+	log.Printf("speaker: playing %q via proxy %s (upstream %s)", st.Name, proxy, st.URL)
+	return proxy
 }
 
 // NewManager creates a Manager for a real speaker at speakerIP (bare IP, no port).
@@ -83,7 +110,7 @@ func (m *Manager) playPreset(slot int) {
 	if !ok {
 		return
 	}
-	if err := m.upnp.Play(st.URL, st.Name); err != nil {
+	if err := m.upnp.Play(m.playbackURL(st), st.Name); err != nil {
 		log.Printf("speaker: play preset %d: %v", slot, err)
 		return
 	}
@@ -98,7 +125,7 @@ func (m *Manager) Play(stationID string) error {
 	if !ok {
 		return fmt.Errorf("station %q not found", stationID)
 	}
-	err := m.upnp.Play(st.URL, st.Name)
+	err := m.upnp.Play(m.playbackURL(st), st.Name)
 	if err == nil {
 		m.mu.Lock()
 		m.nowPlaying = st.Name

@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 
 	"soundtouch-radio-bridge/internal/config"
+	"soundtouch-radio-bridge/internal/hls"
+	"soundtouch-radio-bridge/internal/speaker"
 	"soundtouch-radio-bridge/internal/tunein"
 )
 
@@ -51,7 +55,16 @@ func (h *Handler) AddStation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name and url required", http.StatusBadRequest)
 		return
 	}
-	st := config.Station{Name: req.Name, URL: req.URL, Logo: req.Logo}
+	st := config.Station{
+		Name: req.Name,
+		URL:  req.URL,
+		Logo: req.Logo,
+		// Proxy when: HEAD fails (e.g. BBC) OR upstream is HTTPS (SoundTouch 10
+		// has no TLS) OR upstream is HLS (speaker can't play .m3u8 natively).
+		NeedsProxy: !speaker.HeadOK(req.URL) ||
+			strings.HasPrefix(req.URL, "https://") ||
+			strings.HasSuffix(req.URL, ".m3u8"),
+	}
 	if err := h.store.AddStation(st); err != nil {
 		http.Error(w, "save error", http.StatusInternalServerError)
 		return
@@ -137,4 +150,51 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 		"online":     online,
 		"nowPlaying": nowPlaying,
 	})
+}
+
+// Stream proxies the upstream audio stream so the speaker can probe (HEAD)
+// and play (GET) it via the bridge. Some stations (e.g. BBC) return 4xx on
+// HEAD, which causes the speaker to silently abort playback. Routing through
+// this proxy avoids that.
+func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	st, ok := h.store.StationByID(id)
+	if !ok {
+		http.Error(w, "station not found", http.StatusNotFound)
+		return
+	}
+	if r.Method == http.MethodHead {
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Header().Set("Accept-Ranges", "none")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	// HLS upstream → transmux to ADTS-framed AAC.
+	if strings.HasSuffix(st.URL, ".m3u8") {
+		w.Header().Set("Content-Type", "audio/aac")
+		w.WriteHeader(http.StatusOK)
+		_ = hls.Stream(r.Context(), w, st.URL)
+		return
+	}
+	// Plain stream → straight pass-through.
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, st.URL, nil)
+	if err != nil {
+		http.Error(w, "bad upstream URL", http.StatusBadGateway)
+		return
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; soundtouch-radio-bridge)")
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "upstream error: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	} else {
+		w.Header().Set("Content-Type", "audio/mpeg")
+	}
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }

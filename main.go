@@ -5,9 +5,11 @@ import (
 	"embed"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"soundtouch-radio-bridge/internal/api"
@@ -15,6 +17,17 @@ import (
 	"soundtouch-radio-bridge/internal/speaker"
 	"soundtouch-radio-bridge/internal/tunein"
 )
+
+// localIPFor returns the IP the OS would use to reach target. Uses a UDP
+// "connection" which never sends a packet but populates the local address.
+func localIPFor(target string) string {
+	conn, err := net.Dial("udp", target+":1")
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP.String()
+}
 
 //go:embed web/index.html
 var webFS embed.FS
@@ -37,6 +50,13 @@ func main() {
 	var mgr *speaker.Manager
 	if len(cfg.Speakers) > 0 {
 		mgr = speaker.NewManager(cfg.Speakers[0].IP, store)
+		if ip := localIPFor(cfg.Speakers[0].IP); ip != "" {
+			// addr is like ":8080" — keep the port portion
+			port := strings.TrimPrefix(*addr, ":")
+			bridgeURL := "http://" + ip + ":" + port
+			mgr.SetBridgeURL(bridgeURL)
+			log.Printf("bridge URL for stream proxy: %s", bridgeURL)
+		}
 	}
 
 	tuneIn := tunein.NewClient("")
