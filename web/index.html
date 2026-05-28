@@ -45,10 +45,21 @@
   .add-name-input { width: 100%; background: #161b22; border: 1px solid #21262d; color: #e6edf3; border-radius: 5px; padding: 7px 10px; font-size: 12px; margin-bottom: 6px; }
   .add-name-input:focus { outline: none; border-color: #3b82f6; }
   .help-text { font-size: 10px; color: #484f58; margin-top: 4px; }
-  .search-results { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; max-height: 200px; overflow-y: auto; }
+  .search-results { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; max-height: 360px; overflow-y: auto; }
   .search-result { display: flex; align-items: center; gap: 8px; background: #161b22; border: 1px solid #21262d; border-radius: 5px; padding: 7px 10px; cursor: pointer; }
   .search-result:hover { border-color: #3b82f6; }
   .search-result-name { flex: 1; font-size: 12px; }
+  .pending-add { margin-top: 8px; background: #0d1a2a; border: 1px solid #1e3a5a; border-radius: 8px; padding: 12px; }
+  .pending-add-label { font-size: 10px; color: #60a5fa; font-weight: 600; letter-spacing: 1px; margin-bottom: 8px; }
+  .pending-add-row { display: flex; gap: 6px; align-items: center; }
+  .pending-add input { flex: 1; background: #0d1117; border: 1px solid #21262d; color: #e6edf3; border-radius: 5px; padding: 7px 10px; font-size: 12px; }
+  .pending-add input:focus { outline: none; border-color: #3b82f6; }
+  .pending-add-url { font-size: 10px; color: #6b7280; margin-top: 6px; word-break: break-all; }
+  .menu-popover { position: absolute; right: 16px; background: #161b22; border: 1px solid #2a3340; border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 50; min-width: 160px; }
+  .menu-item { padding: 8px 12px; font-size: 12px; cursor: pointer; border-radius: 4px; }
+  .menu-item:hover { background: #1c2128; }
+  .menu-item.danger { color: #f87171; }
+  .menu-item.danger:hover { background: #2a1414; }
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
   .modal-overlay.open { display: flex; }
   .modal { background: #161b22; border: 1px solid #21262d; border-radius: 10px; width: 90%; max-width: 380px; overflow: hidden; }
@@ -98,19 +109,19 @@
 <div class="section">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div class="section-title" style="margin-bottom:0">STATIONS</div>
-    <button class="btn btn-add" onclick="document.getElementById('add-section').scrollIntoView({behavior:'smooth'})">+ Add</button>
+    <button class="btn btn-add" onclick="focusAddInput()">+ Add</button>
   </div>
   <div class="station-list" id="station-list"></div>
 </div>
 
 <div class="section" id="add-section">
   <div class="section-title">ADD STATION</div>
-  <input class="add-name-input" id="add-name" placeholder="Station name">
   <div class="add-row">
-    <input class="add-input" id="add-url" placeholder="Search TuneIn or paste stream URL…">
-    <button class="btn btn-add" onclick="handleAddInput()">Search</button>
+    <input class="add-input" id="add-input" placeholder="Paste a stream URL or search TuneIn…" onkeydown="if(event.key==='Enter')handleAddInput()">
+    <button class="btn btn-add" onclick="handleAddInput()">Go</button>
   </div>
-  <div class="help-text">Paste a direct MP3/AAC/HLS URL to add without searching. Or type a station name and press Search.</div>
+  <div class="help-text">Paste an MP3/AAC/HLS URL to add directly, or type a station name to search TuneIn.</div>
+  <div id="pending-add" class="pending-add" style="display:none"></div>
   <div id="search-results" class="search-results"></div>
 </div>
 
@@ -225,11 +236,49 @@ async function stopPlayback() {
 
 function openStationMenu(e, stationId) {
   e.stopPropagation();
-  const choice = confirm('Delete this station?');
-  if (choice) deleteStation(stationId);
+  closeStationMenu();
+  const st = stations.find(s => s.id === stationId);
+  if (!st) return;
+  const menu = document.createElement('div');
+  menu.className = 'menu-popover';
+  menu.id = 'station-menu';
+  const presetButtons = [1,2,3,4,5,6].map(n => {
+    const assigned = (presets[n] === st.id) ? ' ✓' : '';
+    return `<div class="menu-item" onclick="quickAssignPreset(${n}, '${st.id}')">Assign to preset ${n}${assigned}</div>`;
+  }).join('');
+  menu.innerHTML = `
+    <div class="menu-item" onclick="playStation('${st.id}');closeStationMenu()">▶ Play now</div>
+    <div style="height:1px;background:#21262d;margin:4px 0"></div>
+    ${presetButtons}
+    <div style="height:1px;background:#21262d;margin:4px 0"></div>
+    <div class="menu-item danger" onclick="confirmDelete('${st.id}', '${st.name.replace(/'/g,"\\'")}')">🗑 Delete</div>
+  `;
+  document.body.appendChild(menu);
+  const rect = e.target.getBoundingClientRect();
+  menu.style.top = (window.scrollY + rect.bottom + 4) + 'px';
+  menu.style.right = (window.innerWidth - rect.right) + 'px';
+  // dismiss on next click anywhere
+  setTimeout(() => document.addEventListener('click', closeStationMenu, { once: true }), 0);
 }
 
-async function deleteStation(id) {
+function closeStationMenu() {
+  const m = document.getElementById('station-menu');
+  if (m) m.remove();
+}
+
+async function quickAssignPreset(slot, stationId) {
+  await fetch('/api/presets', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({slot, stationId}),
+  });
+  closeStationMenu();
+  await fetchAll();
+}
+
+async function confirmDelete(id, name) {
+  closeStationMenu();
+  if (!confirm(`Delete "${name}"?`)) return;
   await fetch('/api/stations/' + id, {method:'DELETE'});
   await fetchAll();
 }
@@ -329,52 +378,91 @@ function closeModal(event) {
   pickerSelected = null;
 }
 
-async function handleAddInput() {
-  const urlInput = document.getElementById('add-url').value.trim();
-  const nameInput = document.getElementById('add-name').value.trim();
+function focusAddInput() {
+  const el = document.getElementById('add-input');
+  document.getElementById('add-section').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Focus after the scroll completes so the keyboard pops up on mobile.
+  setTimeout(() => el.focus({ preventScroll: true }), 350);
+}
 
-  if (urlInput.startsWith('http')) {
-    if (!nameInput) { alert('Please enter a station name.'); return; }
-    await addStation(nameInput, urlInput, '');
-    document.getElementById('add-url').value = '';
-    document.getElementById('add-name').value = '';
+async function handleAddInput() {
+  const input = document.getElementById('add-input').value.trim();
+  if (!input) return;
+  // URL: show pending-add card with editable name (default to hostname).
+  if (input.startsWith('http://') || input.startsWith('https://')) {
+    let defaultName = '';
+    try { defaultName = new URL(input).hostname; } catch(e) { defaultName = ''; }
+    showPendingAdd(defaultName, input, '');
     document.getElementById('search-results').innerHTML = '';
-    await fetchAll();
     return;
   }
-
-  const q = urlInput || nameInput;
-  if (!q) return;
-  const res = await fetch('/api/search?q=' + encodeURIComponent(q));
-  if (!res.ok) { alert('Search failed. Try pasting a direct stream URL instead.'); return; }
+  // Search query: hit TuneIn.
+  const res = await fetch('/api/search?q=' + encodeURIComponent(input));
+  if (!res.ok) {
+    alert('Search failed. Try pasting a direct stream URL instead.');
+    return;
+  }
   const results = await res.json();
   const container = document.getElementById('search-results');
   container.innerHTML = '';
+  document.getElementById('pending-add').style.display = 'none';
   if (!results || results.length === 0) {
     container.innerHTML = '<div style="color:#484f58;font-size:12px;padding:4px 0">No results. Try a direct URL.</div>';
     return;
   }
-  results.slice(0, 5).forEach(r => {
+  results.forEach(r => {
+    const name = r.name || '';
+    const url = r.url || '';
+    const logo = r.logo || '';
     const el = document.createElement('div');
     el.className = 'search-result';
-    el.innerHTML = `<div style="font-size:14px">📻</div><div class="search-result-name">${r.name || r.Name}</div><button class="btn btn-add">Add</button>`;
-    el.querySelector('button').onclick = async () => {
-      await addStation(r.name || r.Name, r.url || r.URL, r.logo || r.Logo || '');
+    el.innerHTML = `<div style="font-size:14px">📻</div><div class="search-result-name">${escapeHTML(name)}</div><button class="btn btn-add">Add</button>`;
+    el.querySelector('button').onclick = () => {
+      showPendingAdd(name, url, logo);
       container.innerHTML = '';
-      document.getElementById('add-url').value = '';
-      document.getElementById('add-name').value = '';
-      await fetchAll();
     };
     container.appendChild(el);
   });
 }
 
-async function addStation(name, url, logo) {
+function showPendingAdd(name, url, logo) {
+  const tray = document.getElementById('pending-add');
+  tray.style.display = '';
+  tray.innerHTML = `
+    <div class="pending-add-label">NAME THIS STATION</div>
+    <div class="pending-add-row">
+      <input type="text" id="pending-name" value="${escapeAttr(name)}" placeholder="Station name" onkeydown="if(event.key==='Enter')confirmPendingAdd('${escapeAttr(url)}','${escapeAttr(logo)}')">
+      <button class="btn btn-add" onclick="confirmPendingAdd('${escapeAttr(url)}','${escapeAttr(logo)}')">Add</button>
+      <button class="btn btn-cancel" onclick="cancelPendingAdd()">Cancel</button>
+    </div>
+    <div class="pending-add-url">${escapeHTML(url)}</div>
+  `;
+  setTimeout(() => document.getElementById('pending-name').focus(), 0);
+}
+
+async function confirmPendingAdd(url, logo) {
+  const name = document.getElementById('pending-name').value.trim();
+  if (!name) { alert('Please enter a name.'); return; }
   await fetch('/api/stations', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name, url, logo})
+    body: JSON.stringify({name, url, logo}),
   });
+  cancelPendingAdd();
+  document.getElementById('add-input').value = '';
+  await fetchAll();
+}
+
+function cancelPendingAdd() {
+  document.getElementById('pending-add').style.display = 'none';
+  document.getElementById('pending-add').innerHTML = '';
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s) {
+  return String(s).replace(/['"\\]/g, c => '\\' + c);
 }
 
 fetchAll();

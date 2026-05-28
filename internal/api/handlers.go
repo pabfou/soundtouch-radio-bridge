@@ -176,15 +176,16 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 		_ = hls.Stream(r.Context(), w, st.URL)
 		return
 	}
-	// Plain stream → straight pass-through.
-	client := &http.Client{Timeout: 10 * time.Second}
+	// Plain stream → straight pass-through. The transport caps connect/header
+	// time so a dead upstream fails fast, but there is no overall timeout —
+	// the body must be allowed to stream indefinitely.
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, st.URL, nil)
 	if err != nil {
 		http.Error(w, "bad upstream URL", http.StatusBadGateway)
 		return
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; soundtouch-radio-bridge)")
-	resp, err := client.Do(req)
+	resp, err := streamClient.Do(req)
 	if err != nil {
 		http.Error(w, "upstream error: "+err.Error(), http.StatusBadGateway)
 		return
@@ -197,4 +198,14 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+}
+
+// streamClient is used for long-lived stream proxying. ResponseHeaderTimeout
+// catches dead upstreams quickly, but no overall Timeout — the body must be
+// allowed to stream indefinitely.
+var streamClient = &http.Client{
+	Transport: &http.Transport{
+		ResponseHeaderTimeout: 10 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+	},
 }
