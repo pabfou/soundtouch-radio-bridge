@@ -39,7 +39,7 @@ func TestClient_Select(t *testing.T) {
 
 func TestClient_ProbePresetWrite_supported(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/presets" && r.Method == http.MethodPost {
+		if r.URL.Path == "/storePreset" && r.Method == http.MethodPost {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -70,7 +70,7 @@ func TestClient_ProbePresetWrite_unsupported(t *testing.T) {
 func TestClient_SetPreset(t *testing.T) {
 	var gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/presets" && r.Method == http.MethodPost {
+		if r.URL.Path == "/storePreset" && r.Method == http.MethodPost {
 			b, _ := io.ReadAll(r.Body)
 			gotBody = string(b)
 			w.WriteHeader(http.StatusOK)
@@ -86,16 +86,14 @@ func TestClient_SetPreset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var presets struct {
-		XMLName xml.Name `xml:"presets"`
-		Preset  struct {
-			ID int `xml:"id,attr"`
-		} `xml:"preset"`
+	var preset struct {
+		XMLName xml.Name `xml:"preset"`
+		ID      int      `xml:"id,attr"`
 	}
-	if err := xml.Unmarshal([]byte(gotBody), &presets); err != nil {
+	if err := xml.Unmarshal([]byte(gotBody), &preset); err != nil {
 		t.Fatalf("invalid XML: %v — body: %s", err, gotBody)
 	}
-	if presets.Preset.ID != 1 {
-		t.Fatalf("expected preset id=1, got %d", presets.Preset.ID)
+	if preset.ID != 1 {
+		t.Fatalf("expected preset id=1, got %d", preset.ID)
 	}
 }

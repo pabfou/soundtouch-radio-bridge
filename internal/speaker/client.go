@@ -35,12 +35,8 @@ type contentItem struct {
 	ItemName      string   `xml:"itemName"`
 }
 
-type presetsRequest struct {
-	XMLName xml.Name    `xml:"presets"`
-	Preset  presetEntry `xml:"preset"`
-}
-
-type presetEntry struct {
+type presetStore struct {
+	XMLName xml.Name    `xml:"preset"`
 	ID      int         `xml:"id,attr"`
 	Content contentItem `xml:"ContentItem"`
 }
@@ -68,22 +64,20 @@ func (c *Client) Select(streamURL, name string) error {
 }
 
 func (c *Client) SetPreset(slot int, streamURL, name string) error {
-	req := presetsRequest{
-		Preset: presetEntry{
-			ID: slot,
-			Content: contentItem{
-				Source:       "INTERNET_RADIO",
-				Location:     streamURL,
-				IsPresetable: true,
-				ItemName:     name,
-			},
+	req := presetStore{
+		ID: slot,
+		Content: contentItem{
+			Source:       "INTERNET_RADIO",
+			Location:     streamURL,
+			IsPresetable: true,
+			ItemName:     name,
 		},
 	}
 	body, err := xml.Marshal(req)
 	if err != nil {
 		return err
 	}
-	resp, err := c.http.Post(c.baseURL+"/presets", "application/xml", bytes.NewReader(body))
+	resp, err := c.http.Post(c.baseURL+"/storePreset", "application/xml", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -94,10 +88,9 @@ func (c *Client) SetPreset(slot int, streamURL, name string) error {
 	return nil
 }
 
-// ProbePresetWrite tests whether the speaker accepts POST /presets (Strategy 1).
-// Sends a harmless empty body and checks for non-404 response.
+// ProbePresetWrite tests whether the speaker accepts POST /storePreset (Strategy 1).
 func (c *Client) ProbePresetWrite() bool {
-	resp, err := c.http.Post(c.baseURL+"/presets", "application/xml", bytes.NewReader([]byte("<presets/>")))
+	resp, err := c.http.Post(c.baseURL+"/storePreset", "application/xml", bytes.NewReader([]byte("<preset/>")))
 	if err != nil {
 		return false
 	}
