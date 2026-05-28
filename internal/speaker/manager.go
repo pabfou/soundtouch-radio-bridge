@@ -12,6 +12,7 @@ import (
 
 type Manager struct {
 	client     *Client
+	upnp       *UPnPClient
 	ws         *WSListener
 	store      *config.Store
 	mu         sync.RWMutex
@@ -20,19 +21,22 @@ type Manager struct {
 }
 
 // NewManager creates a Manager for a real speaker at speakerIP (bare IP, no port).
-// REST client connects to :8090; WebSocket connects to :8080.
+// REST client uses :8090; UPnP uses :8091; WebSocket uses :8080.
 func NewManager(speakerIP string, store *config.Store) *Manager {
 	return &Manager{
 		client: NewClient(speakerIP),
+		upnp:   NewUPnPClient(speakerIP),
 		ws:     NewWSListener(speakerIP),
 		store:  store,
 	}
 }
 
 // NewManagerForTest allows injecting separate HTTP and WS addresses (host:port) for unit tests.
+// upnpAddr may be empty for tests that don't exercise UPnP.
 func NewManagerForTest(httpAddr, wsAddr string, store *config.Store) *Manager {
 	return &Manager{
 		client: NewClient(httpAddr),
+		upnp:   NewUPnPClient(httpAddr),
 		ws: &WSListener{
 			addr:           wsAddr,
 			PresetPressed:  make(chan int, 4),
@@ -79,7 +83,7 @@ func (m *Manager) playPreset(slot int) {
 	if !ok {
 		return
 	}
-	if err := m.client.Select(st.URL, st.Name); err != nil {
+	if err := m.upnp.Play(st.URL, st.Name); err != nil {
 		log.Printf("speaker: play preset %d: %v", slot, err)
 		return
 	}
@@ -94,7 +98,7 @@ func (m *Manager) Play(stationID string) error {
 	if !ok {
 		return fmt.Errorf("station %q not found", stationID)
 	}
-	err := m.client.Select(st.URL, st.Name)
+	err := m.upnp.Play(st.URL, st.Name)
 	if err == nil {
 		m.mu.Lock()
 		m.nowPlaying = st.Name

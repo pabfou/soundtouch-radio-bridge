@@ -16,19 +16,22 @@ import (
 )
 
 func TestManager_PlayOnPresetPress(t *testing.T) {
-	var selectCalled atomic.Bool
+	var playSetURI atomic.Bool
 
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/select" && r.Method == http.MethodPost {
-			io.Copy(io.Discard, r.Body)
-			selectCalled.Store(true)
+		if r.URL.Path == "/AVTransport/Control" && r.Method == http.MethodPost {
+			action := r.Header.Get("SOAPAction")
+			if strings.Contains(action, "SetAVTransportURI") {
+				playSetURI.Store(true)
+			}
 		}
+		io.Copy(io.Discard, r.Body)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpSrv.Close()
 
-	// Correct event format: nowSelectionUpdated with preset id
-	presetMsg := `<nowSelectionUpdated><preset id="1" /></nowSelectionUpdated>`
+	// Speaker wraps events in <updates>...</updates>
+	presetMsg := `<updates><nowSelectionUpdated><preset id="1" /></nowSelectionUpdated></updates>`
 
 	wsSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _ := upgrader.Upgrade(w, r, nil)
@@ -55,8 +58,8 @@ func TestManager_PlayOnPresetPress(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	if !selectCalled.Load() {
-		t.Fatal("expected /select to be called when preset 1 pressed")
+	if !playSetURI.Load() {
+		t.Fatal("expected UPnP SetAVTransportURI when preset 1 pressed")
 	}
 }
 

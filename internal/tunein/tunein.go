@@ -12,9 +12,9 @@ import (
 )
 
 type Station struct {
-	Name string
-	URL  string
-	Logo string
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	Logo string `json:"logo"`
 }
 
 type Client struct {

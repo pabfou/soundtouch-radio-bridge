@@ -47,12 +47,15 @@ func (w *WSListener) connect(ctx context.Context) error {
 	if !strings.Contains(w.addr, ":") {
 		wsURL = "ws://" + w.addr + ":8080"
 	}
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
+	// SoundTouch requires the "gabbo" subprotocol to emit events
+	dialer := *websocket.DefaultDialer
+	dialer.Subprotocols = []string{"gabbo"}
+	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-	log.Printf("speaker ws: connected to %s", wsURL)
+	log.Printf("speaker ws: connected to %s (subprotocol=%q)", wsURL, conn.Subprotocol())
 	w.read(ctx, conn)
 	log.Printf("speaker ws: disconnected")
 	return nil
@@ -82,17 +85,35 @@ func (w *WSListener) read(ctx context.Context, conn *websocket.Conn) {
 
 // parsePresetSlot extracts a preset slot number from a SoundTouch WebSocket
 // XML event. Returns 0 if the event is not a preset button press.
-// The speaker sends nowSelectionUpdated with a nested <preset id="N"> element.
+// The speaker sends events wrapped in <updates>...</updates>:
+//
+//	<updates ...><nowSelectionUpdated><preset id="N">...</preset></nowSelectionUpdated></updates>
+//
+// Older firmware may also send the inner element directly.
 func parsePresetSlot(data []byte) int {
-	var event struct {
+	// Try wrapped form first
+	var wrapped struct {
+		XMLName  xml.Name `xml:"updates"`
+		Updated  struct {
+			Preset struct {
+				ID string `xml:"id,attr"`
+			} `xml:"preset"`
+		} `xml:"nowSelectionUpdated"`
+	}
+	if xml.Unmarshal(data, &wrapped) == nil && wrapped.XMLName.Local == "updates" {
+		if n, err := strconv.Atoi(wrapped.Updated.Preset.ID); err == nil && n >= 1 && n <= 6 {
+			return n
+		}
+	}
+	// Fall back to bare form
+	var bare struct {
 		XMLName xml.Name `xml:"nowSelectionUpdated"`
 		Preset  struct {
 			ID string `xml:"id,attr"`
 		} `xml:"preset"`
 	}
-	if xml.Unmarshal(data, &event) == nil && event.XMLName.Local == "nowSelectionUpdated" {
-		n, err := strconv.Atoi(event.Preset.ID)
-		if err == nil && n >= 1 && n <= 6 {
+	if xml.Unmarshal(data, &bare) == nil && bare.XMLName.Local == "nowSelectionUpdated" {
+		if n, err := strconv.Atoi(bare.Preset.ID); err == nil && n >= 1 && n <= 6 {
 			return n
 		}
 	}

@@ -12,10 +12,10 @@ import (
 )
 
 type Station struct {
-	ID   string `yaml:"id"`
-	Name string `yaml:"name"`
-	URL  string `yaml:"url"`
-	Logo string `yaml:"logo,omitempty"`
+	ID   string `yaml:"id" json:"id"`
+	Name string `yaml:"name" json:"name"`
+	URL  string `yaml:"url" json:"url"`
+	Logo string `yaml:"logo,omitempty" json:"logo,omitempty"`
 }
 
 type Speaker struct {
