@@ -1,0 +1,16 @@
+speakers:
+  - name: Living Room
+    ip: 192.168.1.50   # change to your speaker's IP
+
+stations:
+  - id: bbc-radio-4
+    name: BBC Radio 4
+    url: http://stream.live.vc.bbcmedia.co.uk/bbc_radio_fourfm
+
+presets:
+  1: bbc-radio-4
+  2: null
+  3: null
+  4: null
+  5: null
+  6: null
