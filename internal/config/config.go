@@ -356,19 +356,48 @@ func (s *Store) materializeProfilesLocked() {
 	}
 }
 
-// SetActiveProfile sets the active profile by name. Returns ErrUnknownProfile
-// if no saved profile matches name.
+// SetActiveProfile makes name the active profile. Switching auto-saves the
+// current working set (stations + presets) into the previously active profile
+// so unsaved edits are not lost, then loads the new profile's stations and
+// presets into the working set so the home page reflects the active profile.
+// Returns ErrUnknownProfile if no saved profile matches name.
 func (s *Store) SetActiveProfile(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.materializeProfilesLocked()
-	for _, p := range s.cfg.Profiles {
+
+	newIdx := -1
+	for i, p := range s.cfg.Profiles {
 		if p.Name == name {
-			s.cfg.ActiveProfile = name
-			return s.save()
+			newIdx = i
+			break
 		}
 	}
-	return ErrUnknownProfile
+	if newIdx < 0 {
+		return ErrUnknownProfile
+	}
+
+	if prev := s.cfg.ActiveProfile; prev != "" && prev != name {
+		for i, p := range s.cfg.Profiles {
+			if p.Name == prev {
+				s.cfg.Profiles[i].Stations = append([]Station(nil), s.cfg.Stations...)
+				s.cfg.Profiles[i].Presets = map[int]string{}
+				for k, v := range s.cfg.Presets {
+					s.cfg.Profiles[i].Presets[k] = v
+				}
+				break
+			}
+		}
+	}
+
+	newProfile := s.cfg.Profiles[newIdx]
+	s.cfg.Stations = append([]Station(nil), newProfile.Stations...)
+	s.cfg.Presets = map[int]string{}
+	for k, v := range newProfile.Presets {
+		s.cfg.Presets[k] = v
+	}
+	s.cfg.ActiveProfile = name
+	return s.save()
 }
 
 // AddProfile creates an empty profile (no stations, six empty preset slots).

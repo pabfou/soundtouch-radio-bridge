@@ -327,3 +327,69 @@ func TestRenameSpeaker_EmptyNewName(t *testing.T) {
 		t.Fatalf("got %v, want config.ErrEmptyName", err)
 	}
 }
+
+func TestSetActiveProfile_LoadsTargetIntoWorkingSet(t *testing.T) {
+	path := t.TempDir() + "/config.yaml"
+	s, _ := config.NewStore(path)
+	if err := s.SetActiveProfile("PalmaSola"); err != nil {
+		t.Fatalf("SetActiveProfile: %v", err)
+	}
+	cfg := s.Get()
+	if len(cfg.Stations) == 0 {
+		t.Fatal("expected PalmaSola stations to be copied into working set, got 0")
+	}
+	if cfg.Presets[1] != "rtbf-la-premiere" {
+		t.Fatalf("expected preset 1=rtbf-la-premiere, got %q", cfg.Presets[1])
+	}
+	if cfg.ActiveProfile != "PalmaSola" {
+		t.Fatalf("expected active_profile=PalmaSola, got %q", cfg.ActiveProfile)
+	}
+}
+
+func TestSetActiveProfile_AutoSavesPreviousProfile(t *testing.T) {
+	path := t.TempDir() + "/config.yaml"
+	s, _ := config.NewStore(path)
+	if err := s.SetActiveProfile("PalmaSola"); err != nil {
+		t.Fatalf("SetActiveProfile PalmaSola: %v", err)
+	}
+	if err := s.AddStation(config.Station{Name: "Custom", URL: "http://x/y"}); err != nil {
+		t.Fatalf("AddStation: %v", err)
+	}
+	if err := s.SetActiveProfile("VertChasseur"); err != nil {
+		t.Fatalf("SetActiveProfile VertChasseur: %v", err)
+	}
+	cfg := s.Get()
+	if len(cfg.Stations) != 0 {
+		t.Fatalf("expected VertChasseur to have 0 stations in working set, got %d", len(cfg.Stations))
+	}
+	if err := s.SetActiveProfile("PalmaSola"); err != nil {
+		t.Fatalf("SetActiveProfile back to PalmaSola: %v", err)
+	}
+	cfg = s.Get()
+	foundCustom := false
+	for _, st := range cfg.Stations {
+		if st.Name == "Custom" {
+			foundCustom = true
+		}
+	}
+	if !foundCustom {
+		t.Fatal("expected Custom station to survive round-trip via auto-save into PalmaSola")
+	}
+}
+
+func TestSetActiveProfile_UnknownNameDoesNotMutate(t *testing.T) {
+	path := t.TempDir() + "/config.yaml"
+	s, _ := config.NewStore(path)
+	_ = s.SetActiveProfile("PalmaSola")
+	before := s.Get()
+	if err := s.SetActiveProfile("does-not-exist"); !errors.Is(err, config.ErrUnknownProfile) {
+		t.Fatalf("got %v, want ErrUnknownProfile", err)
+	}
+	after := s.Get()
+	if after.ActiveProfile != before.ActiveProfile {
+		t.Fatal("active_profile changed on failed SetActiveProfile")
+	}
+	if len(after.Stations) != len(before.Stations) {
+		t.Fatal("working set mutated on failed SetActiveProfile")
+	}
+}
