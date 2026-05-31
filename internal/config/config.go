@@ -28,9 +28,10 @@ type Speaker struct {
 }
 
 type Config struct {
-	Speakers []Speaker      `yaml:"speakers"`
-	Stations []Station      `yaml:"stations"`
-	Presets  map[int]string `yaml:"presets"`
+	Speakers      []Speaker      `yaml:"speakers"`
+	ActiveSpeaker string         `yaml:"active_speaker,omitempty"`
+	Stations      []Station      `yaml:"stations"`
+	Presets       map[int]string `yaml:"presets"`
 }
 
 type Store struct {
@@ -171,4 +172,32 @@ func (s *Store) save() error {
 		return err
 	}
 	return os.Rename(tmp, s.path)
+}
+
+// Speakers returns a snapshot copy of the saved speaker list.
+func (s *Store) Speakers() []Speaker {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Speaker, len(s.cfg.Speakers))
+	copy(out, s.cfg.Speakers)
+	return out
+}
+
+// Active resolves the active speaker. Returns ok=false if no speakers exist.
+// If active_speaker is set and matches a name, that speaker wins. If unset or
+// pointing at an unknown name, falls back to speakers[0].
+func (s *Store) Active() (Speaker, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.cfg.Speakers) == 0 {
+		return Speaker{}, false
+	}
+	if s.cfg.ActiveSpeaker != "" {
+		for _, sp := range s.cfg.Speakers {
+			if sp.Name == s.cfg.ActiveSpeaker {
+				return sp, true
+			}
+		}
+	}
+	return s.cfg.Speakers[0], true
 }
