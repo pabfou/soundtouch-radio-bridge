@@ -1,4 +1,4 @@
-# Speaker Discovery & Management UI — Design Spec
+# Settings UI — Speaker Discovery & Station Profiles — Design Spec
 
 **Date:** 2026-05-31
 **Status:** Approved
@@ -6,12 +6,18 @@
 
 ## Overview
 
-Adds a Settings page to the web UI for managing SoundTouch speakers. Today, speaker configuration requires editing `config.yaml` by hand and restarting the container. After this change, users can:
+Two related web UI additions that together remove the need to ever edit `config.yaml` by hand or restart the container after first install.
 
+**Speaker management** (new Settings page):
 - Trigger mDNS discovery from the browser to find speakers on the LAN.
 - Save multiple speakers in `config.yaml`, with one marked as active.
 - Switch the active speaker (the one that receives playback) without restart.
 - Rename and remove saved speakers.
+
+**Station profiles** (Presets card on the main page):
+- Save and restore named snapshots of stations + preset assignments.
+- Ships seeded with three profiles: **PalmaSola** (curated from current `presets.txt`), **VertChasseur** (empty), **Autres** (empty).
+- Add / rename / delete profiles in a manage modal.
 
 Single-speaker simultaneous playback is preserved — only the active speaker receives commands. Multi-speaker concurrent playback is explicitly out of scope.
 
@@ -195,9 +201,15 @@ The "stop old, then switch" order matters — we lose the old speaker reference 
 
 ## Backwards Compatibility
 
+**Speakers:**
 - Existing `config.yaml` files without `active_speaker` continue to work — `speakers[0]` is treated as active.
 - `active_speaker` is written on the first mutation through the new API.
 - The first-start auto-discovery in `main.go:48` is extended: when it auto-saves a discovered speaker into an empty config, it also sets `ActiveSpeaker = discovered.Name`.
+
+**Profiles:**
+- Existing `config.yaml` files without `profiles:` work unchanged — `Profiles()` falls back to embedded factory profiles. Current `stations`+`presets` remain whatever the user has.
+- `profiles:` is written on the first mutation through the new API (`POST /api/profiles/{name}/save`, `POST /api/profiles`, etc.).
+- The first-run seeding rule (empty `stations`+`presets` AND no `profiles:` → populate from embedded PalmaSola) only fires on truly fresh configs. An existing user with populated `stations` but no `profiles:` is **not** re-seeded — they keep their data and can opt in by clicking Save.
 
 ---
 
@@ -213,33 +225,152 @@ The "stop old, then switch" order matters — we lose the old speaker reference 
 
 ---
 
+## Station Profiles
+
+A named snapshot of `stations` + `presets`. Lets a user keep multiple curated radio sets (e.g. one per deployment site) and switch between them without retyping URLs. Ships seeded with three profiles, expandable from the UI.
+
+### Data model
+
+Added to `config.yaml`:
+
+```yaml
+profiles:
+  - name: PalmaSola
+    stations:
+      - { id: rtbf-la-premiere, name: RTBF La Première, url: http://radios.rtbf.be/laprem1ere-128.mp3 }
+      # … 8 stations from current presets.txt
+    presets:
+      1: rtbf-la-premiere
+      2: france-culture
+      # … etc.
+  - name: VertChasseur
+    stations: []
+    presets: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null }
+  - name: Autres
+    stations: []
+    presets: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null }
+active_profile: PalmaSola
+```
+
+### Embedded factory baseline
+
+New file `internal/config/factory_profiles.yaml`, embedded via `go:embed`, with the three profiles above (PalmaSola seeded from current `presets.txt`, the other two empty). Used when `config.yaml` has no `profiles:` section.
+
+**Resolution rules:**
+- `Profiles()` returns `config.profiles` if non-empty, else the embedded factory profiles.
+- `ActiveProfile()` returns `config.active_profile` if set and matches a profile name, else the first profile.
+- **First-run seeding:** when the bridge starts with a config that has empty `stations` and `presets` AND no `profiles:` section, the current `stations`+`presets` are also populated from the embedded *PalmaSola* profile. Fresh install boots with the curated stations, identical to today's hand-edited setup.
+
+`presets.txt` is deleted as part of this change. `factory_profiles.yaml` is canonical; README gets a one-line pointer.
+
+### HTTP API
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| `GET` | `/api/profiles` | — | `{"active":"PalmaSola", "profiles":[{"name":"...","stations":[...],"presets":{...}}, ...]}` |
+| `POST` | `/api/profiles` | `{"name":"..."}` | 201 / 400 / 409 — creates a new empty profile |
+| `PATCH` | `/api/profiles/{name}` | `{"name":"newName"}` | 200 / 400 / 404 / 409 — rename |
+| `DELETE` | `/api/profiles/{name}` | — | 204 / 404 / 409 |
+| `POST` | `/api/profiles/{name}/save` | — | 200 — snapshot current `stations`+`presets` into this profile |
+| `POST` | `/api/profiles/{name}/load` | — | 200 — replace current `stations`+`presets` from this profile |
+| `POST` | `/api/profiles/active` | `{"name":"..."}` | 200 / 404 — set the dropdown selection |
+
+`409` on DELETE means either: profile is the currently-active one, or it's the last remaining profile (at least one must always exist).
+
+Path parameters URL-encoded; Go 1.22 mux decodes.
+
+### Config Store additions (`internal/config/config.go`)
+
+- `Profiles() []Profile`, `ActiveProfile() string`
+- `SetActiveProfile(name string) error` — `ErrUnknownProfile`
+- `AddProfile(name string) error` — creates empty profile; `ErrEmptyName`, `ErrDuplicateName`
+- `RenameProfile(oldName, newName string) error` — validates name; updates `active_profile` in same locked save if renaming the active
+- `RemoveProfile(name string) error` — `ErrActiveProfile` if active, `ErrLastProfile` if it's the only one
+- `SaveProfile(name string) error` — snapshot current state into named profile; `ErrUnknownProfile`
+- `LoadProfile(name string) error` — replace current `stations`+`presets` from named profile; `ErrUnknownProfile`
+
+All mutating methods acquire `s.mu` and call `s.save()`.
+
+### UI
+
+Modifications to the existing Presets card on the main page (`web/index.html` line ~590):
+
+```
+┌─ Presets ─ [Profile: PalmaSola ▾] [↻ Reload] [⭐ Save] [⚙] ────┐
+│  1: France Inter                                       ▶  ✕   │
+│  …                                                              │
+└────────────────────────────────────────────────────────────────┘
+```
+
+- **Profile dropdown** — lists all profile names with the active one selected. Changing the selection calls `POST /api/profiles/active` (server-side state). Does **not** auto-load — switching the dropdown is only a focus change for the action buttons.
+- **↻ Reload** — `POST /api/profiles/{active}/load`. Confirmation: *"Replace current stations and presets with the **PalmaSola** profile?"*
+- **⭐ Save** — `POST /api/profiles/{active}/save`. Confirmation: *"Overwrite the **PalmaSola** profile with current stations and presets?"*
+- **⚙ Manage profiles** — opens a modal (reusing `.modal-header`) listing all profiles with inline rename (pencil → text input + ✓/✕, same pattern as speaker rename) and delete (trash). An "Add profile" input at the bottom creates a new empty profile. Active row's trash is disabled with tooltip *"Switch active profile first."* Last remaining profile's trash is disabled with tooltip *"Cannot delete the only profile."*
+
+**Why no auto-load on dropdown change:** users may have unsaved experimentation. Explicit Reload prevents silent data loss. Two clicks (pick + Reload) is the cost.
+
+### Edge cases
+
+- Saving over a profile is destructive — confirmation modal is the only guard.
+- Loading a profile replaces stations and presets atomically. The Speaker Manager is not touched; whatever's currently playing keeps playing (the speaker doesn't care about our config until the next preset press or play action).
+- Renaming the active profile updates `active_profile` in the same locked save.
+- Adding a profile with a duplicate name → 409.
+- Profile names: non-empty, trimmed of whitespace, no length limit beyond YAML practicality. Case-sensitive.
+
+### Testing
+
+- `config.Store`: factory fallback when `profiles:` absent; first-run seeding populates `stations`+`presets` from embedded PalmaSola; SaveProfile round-trip; LoadProfile round-trip; LoadProfile with unknown name; RenameProfile of active updates `active_profile`; RemoveProfile rejects active; RemoveProfile rejects last; AddProfile duplicate.
+- Handlers: happy paths for all 7 endpoints + documented error codes; URL-encoded names in path.
+- Manual UI smoke: switch profile in dropdown, click Reload, click Save, open manage modal, rename, add, attempt delete of active (denied), delete a non-active, attempt delete of last remaining (denied).
+
+---
+
 ## Out of Scope
 
 Listed explicitly so they don't sneak back in:
 
+**Speakers:**
 - **Direct IP editing** in the UI — replace via remove+rediscover+add.
 - **MAC / deviceID identity** — `name` is fine for a single LAN. Speakers that change IP via DHCP can be re-discovered.
 - **Simultaneous multi-speaker playback** — requires a per-speaker Manager. Different design.
 - **Reordering saved speakers** in the UI.
 - **Per-speaker preset assignments** — presets remain global, applied to the active speaker.
-- **Authentication** on the settings page — LAN-only app, consistent with the rest of the API.
 - **Speaker grouping / zones** — Bose multi-room SoundTouch grouping APIs are separate territory.
+
+**Profiles:**
+- **Auto-load on profile switch** — Reload is always explicit.
+- **Per-profile speaker association** — tempting (PalmaSola the profile naturally maps to Palma Sola the speaker) but not in this design. Profiles and speakers stay independent.
+- **Import / export of profiles** across devices.
+- **Versioning / undo** of profile saves.
+- **Reordering profiles** in the UI.
+
+**Both:**
+- **Authentication** on the settings page or any of the new endpoints — LAN-only app, consistent with the rest of the API.
 
 ---
 
 ## Files Touched (estimated)
 
-- `internal/config/config.go` — `ActiveSpeaker` field, new methods, errors
-- `internal/config/config_test.go` — new test cases
+**Speaker management:**
+- `internal/config/config.go` — `ActiveSpeaker` field, new Speaker methods, errors
 - `internal/speaker/discover.go` — extract `Discoverer` interface
 - `internal/speaker/manager.go` — `SetTarget` method, `switchMu`
 - `internal/speaker/manager_test.go` — `SetTarget` test
-- `internal/api/router.go` — wire 6 new routes
-- `internal/api/handlers.go` — 6 new handlers (`GET` / `POST` / `PATCH` / `DELETE` on speakers, `POST` on speakers/active, `POST` on discover)
-- `internal/api/handlers_test.go` — new test cases
-- `internal/api/api.go` (or wherever `New` lives) — accept `Discoverer` and `*Manager` (already accepts Store)
+- `internal/api/api.go` (or wherever `New` lives) — accept `Discoverer` and `*Manager`
 - `main.go` — instantiate `MDNSDiscoverer{}`, pass through; extend first-start auto-discovery to set `ActiveSpeaker`
-- `web/index.html` — add `.icon-btn` CSS, gear link in header
-- `web/settings.html` — new file
-- `web/settings.js` (or inline) — fetch/render/mutate logic
-- `web/settings.css` (or inline) — page-specific styles reusing existing variables
+- `web/index.html` — add `.icon-btn` CSS, gear link in header, Presets card additions (dropdown + Reload/Save/Manage buttons)
+- `web/settings.html` — new file (speaker settings page)
+
+**Profiles:**
+- `internal/config/config.go` — `Profile` type, `Profiles` field, `ActiveProfile` field, profile methods
+- `internal/config/factory_profiles.yaml` — new embedded file with three seeded profiles
+- `internal/config/factory.go` (or similar) — `go:embed` line + factory profile loader
+- `presets.txt` — **delete**; README updated to point at `factory_profiles.yaml`
+
+**Both:**
+- `internal/config/config_test.go` — new test cases for speakers and profiles
+- `internal/api/router.go` — wire 13 new routes (6 speakers + 7 profiles)
+- `internal/api/handlers.go` — 13 new handlers
+- `internal/api/handlers_test.go` — new test cases
+- `web/manage-profiles.modal.html` (or inline in `index.html`) — Manage Profiles modal markup
+- `web/main.js` / `web/settings.js` (or inline) — fetch/render/mutate logic for new features
