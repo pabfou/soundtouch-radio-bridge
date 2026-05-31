@@ -339,6 +339,59 @@
   .btn-secondary:hover { background: rgba(0, 0, 0, 0.1); }
   .btn-ghost { background: transparent; color: var(--accent); }
   .btn-ghost:hover { background: var(--accent-soft); color: var(--accent); }
+
+  /* Profile toolbar in Presets card header */
+  .profile-toolbar { display: flex; align-items: center; gap: 4px; }
+  .profile-select {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 28px 6px 12px;
+    border: 1px solid var(--divider);
+    border-radius: 980px;
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%236e6e73' d='M0 0l5 6 5-6z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    max-width: 180px;
+    text-overflow: ellipsis;
+  }
+  .profile-select:focus { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+  .btn-mini { padding: 6px 10px; font-size: 13px; font-weight: 500; border-radius: 980px; }
+
+  /* Manage Profiles modal */
+  .profile-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--divider-soft);
+  }
+  .profile-row:last-child { border-bottom: none; }
+  .profile-row .pname { flex: 1; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .profile-row .pname.is-active { font-weight: 600; }
+  .profile-row .pbadge { font-size: 11px; color: var(--accent); font-weight: 500; margin-left: 4px; }
+  .profile-row .pactions { display: flex; gap: 2px; }
+  .profile-row input[type=text] {
+    flex: 1; font: inherit; font-size: 15px;
+    padding: 4px 8px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--card);
+  }
+  .add-profile-row {
+    display: flex; gap: 6px; padding-top: 14px; margin-top: 4px;
+    border-top: 1px solid var(--divider-soft);
+  }
+  .add-profile-row input[type=text] {
+    flex: 1; font: inherit; font-size: 14px;
+    padding: 8px 12px;
+    border: 1px solid var(--divider);
+    border-radius: 10px;
+    background: var(--card);
+  }
+  .add-profile-row input[type=text]:focus { outline: none; border-color: var(--accent); }
   .btn-danger { background: transparent; color: var(--danger); }
   .btn-danger:hover { background: rgba(255, 59, 48, 0.1); }
   .btn-play { background: var(--success); color: white; padding: 7px 12px; }
@@ -627,7 +680,12 @@
   <div class="card">
     <div class="card-header">
       <span class="card-title">Presets</span>
-      <button class="icon-btn" id="manage-profiles-btn" aria-label="Manage station profiles" title="Manage station profiles" type="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
+      <div class="profile-toolbar">
+        <select id="profile-select" class="profile-select" aria-label="Active profile"></select>
+        <button class="btn btn-ghost btn-mini" id="reload-profile" type="button" title="Replace current with this profile">↻ Reload</button>
+        <button class="btn btn-ghost btn-mini" id="save-profile" type="button" title="Save current as this profile">⭐ Save</button>
+        <button class="icon-btn" id="manage-profiles-btn" aria-label="Manage station profiles" title="Manage station profiles" type="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
+      </div>
     </div>
     <div class="preset-grid" id="preset-grid"></div>
   </div>
@@ -658,6 +716,22 @@
   <div class="modal">
     <div class="modal-header" id="modal-title">Preset</div>
     <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-profiles" onclick="if(event.target===this)closeProfilesModal()">
+  <div class="modal">
+    <div class="modal-header">Manage Profiles</div>
+    <div class="modal-body">
+      <div id="profiles-list"></div>
+      <div class="add-profile-row">
+        <input type="text" id="new-profile-name" placeholder="New profile name" onkeydown="if(event.key==='Enter')addProfile()">
+        <button class="btn btn-ghost btn-mini" type="button" onclick="addProfile()">+ Add</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" type="button" onclick="closeProfilesModal()">Done</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1011,6 +1085,149 @@ function escapeAttr(s) {
 
 fetchAll();
 setInterval(fetchAll, 3000);
+
+// ===== Profile management =====
+
+let profilesData = { active: '', profiles: [] };
+
+async function loadProfiles() {
+  const res = await fetch('/api/profiles');
+  if (!res.ok) return;
+  profilesData = await res.json();
+  const sel = document.getElementById('profile-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+  for (const p of (profilesData.profiles || [])) {
+    const opt = document.createElement('option');
+    opt.value = p.name;
+    opt.textContent = p.name;
+    if (p.name === profilesData.active) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+document.getElementById('profile-select').addEventListener('change', async (e) => {
+  await fetch('/api/profiles/active', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: e.target.value}),
+  });
+  profilesData.active = e.target.value;
+});
+
+document.getElementById('reload-profile').addEventListener('click', async () => {
+  const sel = document.getElementById('profile-select');
+  const name = sel.value;
+  if (!name) return;
+  if (!confirm(`Replace current stations and presets with the "${name}" profile?`)) return;
+  const res = await fetch('/api/profiles/' + encodeURIComponent(name) + '/load', {method: 'POST'});
+  if (res.ok) { await fetchAll(); }
+  else { alert('Reload failed: ' + (await res.text())); }
+});
+
+document.getElementById('save-profile').addEventListener('click', async () => {
+  const sel = document.getElementById('profile-select');
+  const name = sel.value;
+  if (!name) return;
+  if (!confirm(`Overwrite the "${name}" profile with current stations and presets?`)) return;
+  const res = await fetch('/api/profiles/' + encodeURIComponent(name) + '/save', {method: 'POST'});
+  if (!res.ok) alert('Save failed: ' + (await res.text()));
+});
+
+document.getElementById('manage-profiles-btn').addEventListener('click', async () => {
+  await renderProfilesModal();
+  document.getElementById('modal-profiles').classList.add('open');
+});
+
+function closeProfilesModal() {
+  document.getElementById('modal-profiles').classList.remove('open');
+  document.getElementById('new-profile-name').value = '';
+}
+
+async function renderProfilesModal() {
+  await loadProfiles();
+  const list = document.getElementById('profiles-list');
+  const profiles = profilesData.profiles || [];
+  const active = profilesData.active;
+  const isLast = profiles.length === 1;
+  list.innerHTML = profiles.map(p => {
+    const isActive = p.name === active;
+    const disableTrash = isActive || isLast;
+    const trashTitle = isActive ? 'Switch active profile first' : (isLast ? 'Cannot delete the only profile' : 'Delete profile');
+    return `
+      <div class="profile-row" data-name="${escapeAttr(p.name)}">
+        <div class="pname${isActive ? ' is-active' : ''}">${escapeHTML(p.name)}${isActive ? '<span class="pbadge">Active</span>' : ''}</div>
+        <div class="pactions">
+          <button class="icon-btn" type="button" data-action="rename" title="Rename"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+          <button class="icon-btn" type="button" data-action="delete" ${disableTrash ? 'disabled' : ''} title="${trashTitle}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
+        </div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const action = btn.dataset.action;
+      const row = btn.closest('[data-name]');
+      const name = row.dataset.name;
+      if (action === 'delete') {
+        if (!confirm(`Delete profile "${name}"?`)) return;
+        const res = await fetch('/api/profiles/' + encodeURIComponent(name), {method: 'DELETE'});
+        if (res.ok) { await renderProfilesModal(); await loadProfiles(); }
+        else alert('Delete failed: ' + (await res.text()));
+      } else if (action === 'rename') {
+        startRename(row, name);
+      }
+    });
+  });
+}
+
+function startRename(row, currentName) {
+  const nameEl = row.querySelector('.pname');
+  const wasActive = nameEl.classList.contains('is-active');
+  nameEl.innerHTML = `<input type="text" value="${escapeAttr(currentName)}" data-edit="1">`;
+  const input = nameEl.querySelector('input');
+  input.focus();
+  input.select();
+  let done = false;
+  const commit = async () => {
+    if (done) return;
+    done = true;
+    const newName = input.value.trim();
+    if (!newName || newName === currentName) { await renderProfilesModal(); return; }
+    const res = await fetch('/api/profiles/' + encodeURIComponent(currentName), {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: newName}),
+    });
+    if (res.ok) { await renderProfilesModal(); await loadProfiles(); }
+    else { alert('Rename failed: ' + (await res.text())); await renderProfilesModal(); }
+  };
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') commit();
+    else if (ev.key === 'Escape') { done = true; renderProfilesModal(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+async function addProfile() {
+  const input = document.getElementById('new-profile-name');
+  const name = input.value.trim();
+  if (!name) return;
+  const res = await fetch('/api/profiles', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name}),
+  });
+  if (res.ok) {
+    input.value = '';
+    await renderProfilesModal();
+    await loadProfiles();
+  } else {
+    alert('Add failed: ' + (await res.text()));
+  }
+}
+
+loadProfiles();
 </script>
 </body>
 </html>
