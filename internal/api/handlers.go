@@ -1,17 +1,23 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"soundtouch-radio-bridge/internal/config"
 	"soundtouch-radio-bridge/internal/hls"
 	"soundtouch-radio-bridge/internal/speaker"
 	"soundtouch-radio-bridge/internal/tunein"
 )
+
+var discoverSF singleflight.Group
 
 type SpeakerManager interface {
 	Play(stationID string) error
@@ -210,4 +216,131 @@ var streamClient = &http.Client{
 		ResponseHeaderTimeout: 10 * time.Second,
 		IdleConnTimeout:       90 * time.Second,
 	},
+}
+
+// ===== Speaker management handlers =====
+
+func (h *Handler) ListSpeakers(w http.ResponseWriter, r *http.Request) {
+	active := ""
+	if a, ok := h.store.Active(); ok {
+		active = a.Name
+	}
+	resp := struct {
+		Active   string           `json:"active"`
+		Speakers []config.Speaker `json:"speakers"`
+	}{
+		Active:   active,
+		Speakers: h.store.Speakers(),
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) AddSpeakerHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	var req struct {
+		Name string `json:"name"`
+		IP   string `json:"ip"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.AddSpeaker(config.Speaker{Name: req.Name, IP: req.IP}); {
+	case err == nil:
+		writeJSON(w, http.StatusCreated, config.Speaker{Name: strings.TrimSpace(req.Name), IP: req.IP})
+	case errors.Is(err, config.ErrEmptyName), errors.Is(err, config.ErrInvalidIP):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, config.ErrDuplicateName):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) RemoveSpeakerHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	switch err := h.store.RemoveSpeaker(name); {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, config.ErrUnknownSpeaker):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, config.ErrActiveSpeaker):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) RenameSpeakerHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	oldName := r.PathValue("name")
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.RenameSpeaker(oldName, req.Name); {
+	case err == nil:
+		writeJSON(w, http.StatusOK, config.Speaker{Name: strings.TrimSpace(req.Name)})
+	case errors.Is(err, config.ErrEmptyName):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, config.ErrUnknownSpeaker):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, config.ErrDuplicateName):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) SetActiveSpeakerHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var newSpeaker config.Speaker
+	found := false
+	for _, sp := range h.store.Speakers() {
+		if sp.Name == req.Name {
+			newSpeaker = sp
+			found = true
+			break
+		}
+	}
+	if !found {
+		http.Error(w, "speaker not found", http.StatusNotFound)
+		return
+	}
+	if err := h.store.SetActive(req.Name); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := h.speaker.SetTarget(newSpeaker.IP); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"active": req.Name})
+}
+
+func (h *Handler) DiscoverHandler(w http.ResponseWriter, r *http.Request) {
+	v, err, _ := discoverSF.Do("discover", func() (any, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		return h.discoverer.Discover(ctx, 5*time.Second)
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	found, _ := v.([]speaker.Discovered)
+	if found == nil {
+		found = []speaker.Discovered{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"found": found})
 }

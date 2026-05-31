@@ -19,6 +19,14 @@ func NewRouter(h *Handler, webFS embed.FS) *http.ServeMux {
 	mux.HandleFunc("GET /stream/{id}", h.Stream)
 	mux.HandleFunc("HEAD /stream/{id}", h.Stream)
 
+	// Speaker management
+	mux.HandleFunc("GET /api/speakers", h.ListSpeakers)
+	mux.HandleFunc("POST /api/speakers", h.AddSpeakerHandler)
+	mux.HandleFunc("DELETE /api/speakers/{name}", h.RemoveSpeakerHandler)
+	mux.HandleFunc("PATCH /api/speakers/{name}", h.RenameSpeakerHandler)
+	mux.HandleFunc("POST /api/speakers/active", h.SetActiveSpeakerHandler)
+	mux.HandleFunc("POST /api/discover", h.DiscoverHandler)
+
 	sub, err := fs.Sub(webFS, "web")
 	if err == nil {
 		mux.Handle("GET /", http.FileServer(http.FS(sub)))
