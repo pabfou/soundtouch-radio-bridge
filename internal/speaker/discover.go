@@ -10,8 +10,8 @@ import (
 
 // Discovered describes one speaker found via mDNS.
 type Discovered struct {
-	Name string
-	IP   string
+	Name string `json:"name"`
+	IP   string `json:"ip"`
 }
 
 // Discoverer browses the network for SoundTouch speakers.

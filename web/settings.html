@@ -37,15 +37,17 @@
   .card-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); margin-bottom: 10px; }
   .row { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--divider-soft); }
   .row:last-child { border-bottom: none; }
-  .row .name { flex: 1; font-size: 16px; }
+  .row .name-block { flex: 1; min-width: 0; }
+  .row .name { font-size: 16px; }
+  .row .active-label { font-size: 12px; color: var(--accent); margin-top: 2px; font-weight: 500; letter-spacing: 0.01em; }
   .row .ip { color: var(--text-secondary); font-size: 14px; margin-right: 12px; font-variant-numeric: tabular-nums; }
-  .row .actions { display: flex; gap: 6px; }
+  .row .actions { display: flex; gap: 4px; }
   .row.active .name { font-weight: 600; }
   .radio { width: 18px; height: 18px; border: 2px solid var(--divider); border-radius: 50%; margin-right: 12px; cursor: pointer; flex-shrink: 0; }
   .radio.checked { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 5px, transparent 6px); }
-  .icon-action { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; color: var(--text-secondary); font-size: 15px; }
-  .icon-action:hover:not([disabled]) { background: var(--accent-soft); color: var(--accent); }
-  .icon-action[disabled] { color: var(--text-tertiary); cursor: not-allowed; opacity: 0.5; }
+  .icon-action { background: none; border: 1px solid var(--divider-soft); cursor: pointer; padding: 7px 10px; border-radius: 8px; color: var(--text-secondary); font-size: 17px; line-height: 1; transition: all 0.15s ease; }
+  .icon-action:hover:not([disabled]) { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft); }
+  .icon-action[disabled] { color: var(--text-tertiary); cursor: not-allowed; opacity: 0.4; }
   .btn { background: var(--accent); color: white; border: none; border-radius: 980px; padding: 8px 16px; font-size: 14px; font-weight: 500; cursor: pointer; }
   .btn:hover { background: #0077ed; }
   .btn.secondary { background: var(--card); color: var(--accent); box-shadow: var(--shadow); }
@@ -68,16 +70,11 @@
   </div>
 
   <div class="card">
-    <div class="card-title">Active Speaker</div>
-    <div id="active-row" class="empty">Loading…</div>
-  </div>
-
-  <div class="card">
     <div class="toolbar">
-      <div class="card-title" style="margin-bottom: 0;">Saved Speakers</div>
+      <div class="card-title" style="margin-bottom: 0;">Speakers</div>
       <button id="scan-btn" class="btn secondary">Scan network</button>
     </div>
-    <div id="saved-list"></div>
+    <div id="saved-list" class="empty">Loading…</div>
   </div>
 
   <div class="card" id="discovered-card" style="display:none">
@@ -114,35 +111,28 @@ function escape(s) {
 }
 
 function render() {
-  const active = saved.find(s => s.name === activeName);
-  const activeRow = $('#active-row');
-  if (active) {
-    activeRow.classList.remove('empty');
-    activeRow.innerHTML = `
-      <div class="row active">
-        <div class="radio checked"></div>
-        <div class="name">${escape(active.name)}</div>
-        <div class="ip">${escape(active.ip)}</div>
-      </div>`;
-  } else {
-    activeRow.className = 'empty';
-    activeRow.textContent = 'No speaker selected';
-  }
-
   const savedEl = $('#saved-list');
   if (saved.length === 0) {
-    savedEl.innerHTML = '<div class="empty">No saved speakers</div>';
+    savedEl.className = 'empty';
+    savedEl.textContent = 'No speakers saved yet — click Scan to find one on your network';
   } else {
-    savedEl.innerHTML = saved.map(s => `
-      <div class="row${s.name === activeName ? ' active' : ''}" data-name="${escape(s.name)}">
-        <div class="radio${s.name === activeName ? ' checked' : ''}" data-action="activate"></div>
-        <div class="name" data-action="display">${escape(s.name)}</div>
+    savedEl.className = '';
+    savedEl.innerHTML = saved.map(s => {
+      const isActive = s.name === activeName;
+      return `
+      <div class="row${isActive ? ' active' : ''}" data-name="${escape(s.name)}">
+        <div class="radio${isActive ? ' checked' : ''}" data-action="activate"></div>
+        <div class="name-block">
+          <div class="name" data-action="display">${escape(s.name)}</div>
+          ${isActive ? '<div class="active-label">Active speaker</div>' : ''}
+        </div>
         <div class="ip">${escape(s.ip)}</div>
         <div class="actions">
           <button class="icon-action" data-action="rename" title="Rename">✏</button>
-          <button class="icon-action" data-action="remove" title="Remove" ${s.name === activeName ? 'disabled' : ''}>🗑</button>
+          <button class="icon-action" data-action="remove" title="Remove" ${isActive ? 'disabled' : ''}>🗑</button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   const newOnes = discovered.filter(d => !saved.some(s => s.ip === d.ip));
