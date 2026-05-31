@@ -12,6 +12,7 @@ import (
 )
 
 type Manager struct {
+	switchMu   sync.RWMutex // held write by SetTarget, read by Play/Status
 	client     *Client
 	upnp       *UPnPClient
 	ws         *WSListener
@@ -21,7 +22,11 @@ type Manager struct {
 	strategy1  bool
 	// bridgeURL is set to e.g. "http://192.168.x.y:8080" if the bridge should
 	// proxy streams via /stream/{id}. Empty = send the upstream URL directly.
-	bridgeURL  string
+	bridgeURL string
+
+	// Set by Start; used to re-derive WS context on SetTarget.
+	parentCtx context.Context
+	wsCancel  context.CancelFunc
 }
 
 // SetBridgeURL configures the bridge's own reachable URL so playback can be
@@ -74,6 +79,10 @@ func NewManagerForTest(httpAddr, wsAddr string, store *config.Store) *Manager {
 }
 
 func (m *Manager) Start(ctx context.Context) {
+	m.mu.Lock()
+	m.parentCtx = ctx
+	m.mu.Unlock()
+
 	s1 := m.client.ProbePresetWrite()
 	m.mu.Lock()
 	m.strategy1 = s1
@@ -85,8 +94,52 @@ func (m *Manager) Start(ctx context.Context) {
 		log.Println("speaker: Strategy 1 not supported — relying on WebSocket interception")
 	}
 
-	go m.ws.Start(ctx)
+	wsCtx, cancel := context.WithCancel(ctx)
+	m.mu.Lock()
+	m.wsCancel = cancel
+	m.mu.Unlock()
+
+	go m.ws.Start(wsCtx)
 	m.handleEvents(ctx)
+}
+
+// SetTarget swaps the underlying speaker connection to a new IP. Cancels the
+// existing WebSocket goroutine, replaces client/upnp/ws references, and
+// re-spawns the WS goroutine against the new target using the parent context
+// captured in Start. Safe to call before Start (test path): swaps connections
+// without spawning a WS goroutine.
+func (m *Manager) SetTarget(speakerIP string) error {
+	m.switchMu.Lock()
+	defer m.switchMu.Unlock()
+
+	m.mu.RLock()
+	parent := m.parentCtx
+	cancel := m.wsCancel
+	m.mu.RUnlock()
+
+	if parent == nil {
+		m.client = NewClient(speakerIP)
+		m.upnp = NewUPnPClient(speakerIP)
+		m.ws = NewWSListener(speakerIP)
+		return nil
+	}
+
+	if cancel != nil {
+		cancel()
+	}
+
+	m.client = NewClient(speakerIP)
+	m.upnp = NewUPnPClient(speakerIP)
+	m.ws = NewWSListener(speakerIP)
+
+	wsCtx, newCancel := context.WithCancel(parent)
+	m.mu.Lock()
+	m.wsCancel = newCancel
+	m.nowPlaying = ""
+	m.mu.Unlock()
+
+	go m.ws.Start(wsCtx)
+	return nil
 }
 
 func (m *Manager) handleEvents(ctx context.Context) {
@@ -121,6 +174,8 @@ func (m *Manager) playPreset(slot int) {
 
 // Play immediately plays a station by ID on the speaker.
 func (m *Manager) Play(stationID string) error {
+	m.switchMu.RLock()
+	defer m.switchMu.RUnlock()
 	st, ok := m.store.StationByID(stationID)
 	if !ok {
 		return fmt.Errorf("station %q not found", stationID)
@@ -163,6 +218,8 @@ func (m *Manager) syncPresets() {
 
 // Status checks if the speaker is reachable and returns what's currently playing.
 func (m *Manager) Status() (online bool, nowPlaying string) {
+	m.switchMu.RLock()
+	defer m.switchMu.RUnlock()
 	if err := m.client.GetInfo(); err != nil {
 		return false, ""
 	}
