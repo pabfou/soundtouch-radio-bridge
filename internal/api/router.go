@@ -14,6 +14,7 @@ func NewRouter(h *Handler, webFS embed.FS) *http.ServeMux {
 	mux.HandleFunc("GET /api/presets", h.GetPresets)
 	mux.HandleFunc("POST /api/presets", h.AssignPreset)
 	mux.HandleFunc("POST /api/play", h.Play)
+	mux.HandleFunc("POST /api/stop", h.Stop)
 	mux.HandleFunc("GET /api/search", h.Search)
 	mux.HandleFunc("GET /api/status", h.Status)
 	mux.HandleFunc("GET /stream/{id}", h.Stream)

@@ -36,6 +36,8 @@ func (m *mockManager) Status() (bool, string) {
 
 func (m *mockManager) SyncPresets() {}
 
+func (m *mockManager) Stop() error { m.playedID = ""; return nil }
+
 func (m *mockManager) SetTarget(ip string) error {
 	m.targetIP = ip
 	return nil

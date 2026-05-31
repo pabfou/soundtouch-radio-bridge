@@ -192,6 +192,19 @@ func (m *Manager) Play(stationID string) error {
 	return err
 }
 
+// Stop halts playback on the speaker.
+func (m *Manager) Stop() error {
+	m.switchMu.RLock()
+	defer m.switchMu.RUnlock()
+	if err := m.upnp.Stop(); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.nowPlaying = ""
+	m.mu.Unlock()
+	return nil
+}
+
 // SyncPresets re-syncs all assigned presets to the speaker (Strategy 1).
 // No-op if Strategy 1 is not supported.
 func (m *Manager) SyncPresets() {

@@ -21,6 +21,7 @@ var discoverSF singleflight.Group
 
 type SpeakerManager interface {
 	Play(stationID string) error
+	Stop() error
 	Status() (online bool, nowPlaying string)
 	SyncPresets()
 	SetTarget(ip string) error
@@ -128,6 +129,14 @@ func (h *Handler) Play(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.speaker.Play(req.StationID); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) Stop(w http.ResponseWriter, r *http.Request) {
+	if err := h.speaker.Stop(); err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}

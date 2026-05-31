@@ -214,9 +214,11 @@
     background: rgba(0, 0, 0, 0.015);
   }
   .preset-num {
-    font-size: 11px;
+    font-size: 22px;
     font-weight: 600;
     color: var(--accent);
+    line-height: 1;
+    letter-spacing: -0.02em;
   }
   .preset-name {
     font-size: 13px;
@@ -340,26 +342,12 @@
   .btn-ghost { background: transparent; color: var(--accent); }
   .btn-ghost:hover { background: var(--accent-soft); color: var(--accent); }
 
-  /* Profile toolbar in Presets card header */
-  .profile-toolbar { display: flex; align-items: center; gap: 4px; }
-  .profile-select {
-    font: inherit;
-    font-size: 13px;
-    padding: 6px 28px 6px 12px;
-    border: 1px solid var(--divider);
-    border-radius: 980px;
-    background: var(--card);
-    color: var(--text);
-    cursor: pointer;
-    appearance: none;
-    -webkit-appearance: none;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%236e6e73' d='M0 0l5 6 5-6z'/></svg>");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
-    max-width: 180px;
-    text-overflow: ellipsis;
-  }
-  .profile-select:focus { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+  /* Play variant of icon-btn — green tint on hover */
+  .icon-btn-play { color: var(--success); }
+  .icon-btn-play:hover { background: var(--success-soft); color: var(--success); }
+  .station-row.playing .icon-btn-play { color: var(--success); }
+
+  .card-title-accent { color: var(--accent); text-transform: none; letter-spacing: 0; font-weight: 600; }
   .btn-mini { padding: 6px 10px; font-size: 13px; font-weight: 500; border-radius: 980px; }
 
   /* Manage Profiles modal */
@@ -367,11 +355,22 @@
     display: flex; align-items: center; gap: 8px;
     padding: 10px 0;
     border-bottom: 1px solid var(--divider-soft);
+    cursor: pointer;
   }
   .profile-row:last-child { border-bottom: none; }
+  .profile-row .pradio {
+    width: 18px; height: 18px;
+    border: 2px solid var(--divider);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .profile-row.is-active .pradio {
+    border-color: var(--accent);
+    background: radial-gradient(circle, var(--accent) 0 5px, transparent 6px);
+  }
   .profile-row .pname { flex: 1; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .profile-row .pname.is-active { font-weight: 600; }
-  .profile-row .pbadge { font-size: 11px; color: var(--accent); font-weight: 500; margin-left: 4px; }
+  .profile-row.is-active .pname { font-weight: 600; }
+  .profile-row .pbadge { font-size: 11px; color: var(--accent); font-weight: 500; margin-left: 6px; }
   .profile-row .pactions { display: flex; gap: 2px; }
   .profile-row input[type=text] {
     flex: 1; font: inherit; font-size: 15px;
@@ -664,11 +663,11 @@
 
   <div class="card">
     <div class="card-header">
-      <span class="card-title">Now Playing</span>
+      <span class="card-title">Speaker: <span id="active-speaker-label" class="card-title-accent">—</span></span>
       <a href="/settings" aria-label="Speaker settings" class="icon-btn" title="Speaker settings"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></a>
     </div>
     <div class="now-playing">
-      <div id="np-icon" class="np-icon idle">📻</div>
+      <div id="np-icon" class="np-icon idle"><svg viewBox="0 0 40 60" fill="currentColor" aria-hidden="true" style="width:70%;height:70%"><rect x="3" y="2" width="34" height="56" rx="3"/><g fill="white" opacity="0.65"><circle cx="8.5" cy="7.5" r="1.3"/><circle cx="13.2" cy="7.5" r="1.3"/><circle cx="17.9" cy="7.5" r="1.3"/><circle cx="22.1" cy="7.5" r="1.3"/><circle cx="26.8" cy="7.5" r="1.3"/><circle cx="31.5" cy="7.5" r="1.3"/></g><rect x="9" y="13" width="22" height="3.5" rx="0.6" fill="white" opacity="0.5"/><g fill="white" opacity="0.28"><rect x="7" y="22" width="26" height="1.2" rx="0.4"/><rect x="7" y="25" width="26" height="1.2" rx="0.4"/><rect x="7" y="28" width="26" height="1.2" rx="0.4"/><rect x="7" y="31" width="26" height="1.2" rx="0.4"/><rect x="7" y="34" width="26" height="1.2" rx="0.4"/><rect x="7" y="37" width="26" height="1.2" rx="0.4"/><rect x="7" y="40" width="26" height="1.2" rx="0.4"/><rect x="7" y="43" width="26" height="1.2" rx="0.4"/><rect x="7" y="46" width="26" height="1.2" rx="0.4"/><rect x="7" y="49" width="26" height="1.2" rx="0.4"/><rect x="7" y="52" width="26" height="1.2" rx="0.4"/></g></svg></div>
       <div class="np-info">
         <div id="np-status" class="np-status">Idle</div>
         <div id="np-name" class="np-name empty">Nothing playing</div>
@@ -679,13 +678,8 @@
 
   <div class="card">
     <div class="card-header">
-      <span class="card-title">Presets</span>
-      <div class="profile-toolbar">
-        <select id="profile-select" class="profile-select" aria-label="Active profile"></select>
-        <button class="btn btn-ghost btn-mini" id="reload-profile" type="button" title="Replace current with this profile">↻ Reload</button>
-        <button class="btn btn-ghost btn-mini" id="save-profile" type="button" title="Save current as this profile">⭐ Save</button>
-        <button class="icon-btn" id="manage-profiles-btn" aria-label="Manage station profiles" title="Manage station profiles" type="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
-      </div>
+      <span class="card-title">Presets: <span id="active-profile-label" class="card-title-accent">—</span></span>
+      <button class="icon-btn" id="manage-profiles-btn" aria-label="Manage station profiles" title="Manage station profiles" type="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
     </div>
     <div class="preset-grid" id="preset-grid"></div>
   </div>
@@ -827,8 +821,8 @@ function renderStations() {
         <div class="station-name">${escapeHTML(st.name)}</div>
         ${assignedSlots ? `<div class="station-preset">${escapeHTML(assignedSlots)}</div>` : ''}
       </div>
-      <button class="btn btn-play btn-icon" onclick="playStation('${st.id}')">▶</button>
-      <button class="btn btn-menu" onclick="openStationMenu(event,'${st.id}')">⋯</button>
+      <button class="icon-btn icon-btn-play" onclick="playStation('${st.id}')" aria-label="Play" title="Play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="icon-btn" onclick="openStationMenu(event,'${st.id}')" aria-label="Menu" title="More"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg></button>
     `;
     list.appendChild(row);
   });
@@ -842,10 +836,9 @@ async function playStation(id) {
 }
 
 async function stopPlayback() {
-  await fetch('/api/play', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({stationId: ''})});
+  await fetch('/api/stop', {method: 'POST'});
   nowPlayingStationId = null;
-  updateNowPlaying(null);
-  renderStations();
+  renderStations(); renderPresets();
 }
 
 function openStationMenu(e, stationId) {
@@ -1094,45 +1087,17 @@ async function loadProfiles() {
   const res = await fetch('/api/profiles');
   if (!res.ok) return;
   profilesData = await res.json();
-  const sel = document.getElementById('profile-select');
-  if (!sel) return;
-  sel.innerHTML = '';
-  for (const p of (profilesData.profiles || [])) {
-    const opt = document.createElement('option');
-    opt.value = p.name;
-    opt.textContent = p.name;
-    if (p.name === profilesData.active) opt.selected = true;
-    sel.appendChild(opt);
-  }
+  const label = document.getElementById('active-profile-label');
+  if (label) label.textContent = profilesData.active || '—';
 }
 
-document.getElementById('profile-select').addEventListener('change', async (e) => {
-  await fetch('/api/profiles/active', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name: e.target.value}),
-  });
-  profilesData.active = e.target.value;
-});
-
-document.getElementById('reload-profile').addEventListener('click', async () => {
-  const sel = document.getElementById('profile-select');
-  const name = sel.value;
-  if (!name) return;
-  if (!confirm(`Replace current stations and presets with the "${name}" profile?`)) return;
-  const res = await fetch('/api/profiles/' + encodeURIComponent(name) + '/load', {method: 'POST'});
-  if (res.ok) { await fetchAll(); }
-  else { alert('Reload failed: ' + (await res.text())); }
-});
-
-document.getElementById('save-profile').addEventListener('click', async () => {
-  const sel = document.getElementById('profile-select');
-  const name = sel.value;
-  if (!name) return;
-  if (!confirm(`Overwrite the "${name}" profile with current stations and presets?`)) return;
-  const res = await fetch('/api/profiles/' + encodeURIComponent(name) + '/save', {method: 'POST'});
-  if (!res.ok) alert('Save failed: ' + (await res.text()));
-});
+async function loadActiveSpeaker() {
+  const res = await fetch('/api/speakers');
+  if (!res.ok) return;
+  const data = await res.json();
+  const label = document.getElementById('active-speaker-label');
+  if (label) label.textContent = data.active || '—';
+}
 
 document.getElementById('manage-profiles-btn').addEventListener('click', async () => {
   await renderProfilesModal();
@@ -1155,21 +1120,43 @@ async function renderProfilesModal() {
     const disableTrash = isActive || isLast;
     const trashTitle = isActive ? 'Switch active profile first' : (isLast ? 'Cannot delete the only profile' : 'Delete profile');
     return `
-      <div class="profile-row" data-name="${escapeAttr(p.name)}">
-        <div class="pname${isActive ? ' is-active' : ''}">${escapeHTML(p.name)}${isActive ? '<span class="pbadge">Active</span>' : ''}</div>
+      <div class="profile-row${isActive ? ' is-active' : ''}" data-name="${escapeAttr(p.name)}">
+        <div class="pradio" data-action="activate" title="Make active"></div>
+        <div class="pname" data-action="activate">${escapeHTML(p.name)}${isActive ? '<span class="pbadge">Active</span>' : ''}</div>
         <div class="pactions">
+          <button class="icon-btn" type="button" data-action="load" title="Load this profile (replace current)"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z" transform="rotate(45 12 12)"/></svg></button>
+          <button class="icon-btn" type="button" data-action="save" title="Save current as this profile"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z"/></svg></button>
           <button class="icon-btn" type="button" data-action="rename" title="Rename"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
           <button class="icon-btn" type="button" data-action="delete" ${disableTrash ? 'disabled' : ''} title="${trashTitle}"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </div>
       </div>`;
   }).join('');
 
-  list.querySelectorAll('button[data-action]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const action = btn.dataset.action;
-      const row = btn.closest('[data-name]');
+  list.querySelectorAll('[data-action]').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const action = el.dataset.action;
+      const row = el.closest('[data-name]');
       const name = row.dataset.name;
-      if (action === 'delete') {
+      if (action === 'activate') {
+        if (name === profilesData.active) return;
+        const res = await fetch('/api/profiles/active', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name}),
+        });
+        if (res.ok) { await renderProfilesModal(); await loadProfiles(); }
+        else alert('Activate failed: ' + (await res.text()));
+      } else if (action === 'load') {
+        if (!confirm(`Replace current stations and presets with the "${name}" profile?`)) return;
+        const res = await fetch('/api/profiles/' + encodeURIComponent(name) + '/load', {method: 'POST'});
+        if (res.ok) { await fetchAll(); await renderProfilesModal(); }
+        else alert('Load failed: ' + (await res.text()));
+      } else if (action === 'save') {
+        if (!confirm(`Overwrite the "${name}" profile with current stations and presets?`)) return;
+        const res = await fetch('/api/profiles/' + encodeURIComponent(name) + '/save', {method: 'POST'});
+        if (!res.ok) alert('Save failed: ' + (await res.text()));
+      } else if (action === 'delete') {
         if (!confirm(`Delete profile "${name}"?`)) return;
         const res = await fetch('/api/profiles/' + encodeURIComponent(name), {method: 'DELETE'});
         if (res.ok) { await renderProfilesModal(); await loadProfiles(); }
@@ -1228,6 +1215,8 @@ async function addProfile() {
 }
 
 loadProfiles();
+loadActiveSpeaker();
+setInterval(loadActiveSpeaker, 5000);
 </script>
 </body>
 </html>
