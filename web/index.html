@@ -5,127 +5,614 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SoundTouch Radio Bridge</title>
 <style>
+  :root {
+    --bg: #f5f5f7;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --text-secondary: #6e6e73;
+    --text-tertiary: #86868b;
+    --divider: #d2d2d7;
+    --divider-soft: #e5e5e7;
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --accent-soft: rgba(0, 113, 227, 0.1);
+    --danger: #ff3b30;
+    --success: #34c759;
+    --success-soft: rgba(52, 199, 89, 0.1);
+    --warning: #ff9500;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.04);
+  }
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
-  .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: #161b22; border-bottom: 1px solid #21262d; }
-  .header h1 { font-size: 15px; font-weight: 600; }
-  .badge { font-size: 11px; padding: 3px 10px; border-radius: 10px; font-weight: 600; }
-  .badge.online { background: #1a4a1a; color: #4ade80; }
-  .badge.offline { background: #4a1a1a; color: #f87171; }
-  .section { padding: 14px 16px; border-bottom: 1px solid #21262d; }
-  .section-title { font-size: 10px; font-weight: 700; color: #8b949e; letter-spacing: 1px; margin-bottom: 10px; }
-  .now-playing { display: flex; align-items: center; gap: 12px; background: #0d2a0d; border: 1px solid #1a4a1a; border-radius: 8px; padding: 12px; }
-  .now-playing-info { flex: 1; }
-  .now-playing-name { font-weight: 600; font-size: 14px; }
-  .now-playing-url { font-size: 11px; color: #4ade80; margin-top: 2px; }
-  .now-playing-empty { color: #8b949e; font-size: 13px; }
-  .preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .preset-btn { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; transition: border-color 0.15s; }
-  .preset-btn:hover { border-color: #3b82f6; }
-  .preset-btn.active { border: 2px solid #4ade80; background: #0d2a0d; }
-  .preset-btn.empty { border-style: dashed; }
-  .preset-num { font-size: 10px; font-weight: 700; color: #3b82f6; margin-bottom: 4px; }
-  .preset-name { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .preset-empty-label { font-size: 11px; color: #484f58; }
-  .station-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
-  .station-row { display: flex; align-items: center; gap: 10px; background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 8px 10px; }
-  .station-row.playing { border-color: #1a4a1a; background: #0d2a0d; }
-  .station-name { flex: 1; font-size: 12px; font-weight: 600; }
-  .station-preset { font-size: 10px; color: #3b82f6; font-weight: 600; }
-  .btn { border: none; border-radius: 5px; padding: 5px 10px; font-size: 11px; cursor: pointer; font-weight: 600; }
-  .btn-play { background: #1a3a1a; border: 1px solid #2a5a2a; color: #4ade80; }
-  .btn-play:hover { background: #2a5a2a; }
-  .btn-menu { background: #1c2128; border: 1px solid #21262d; color: #8b949e; }
-  .btn-add { background: #1d4ed8; color: white; }
-  .btn-add:hover { background: #2563eb; }
-  .btn-stop { background: #4a1a1a; border: 1px solid #6a2a2a; color: #f87171; }
-  .add-row { display: flex; gap: 6px; }
-  .add-input { flex: 1; background: #161b22; border: 1px solid #21262d; color: #e6edf3; border-radius: 5px; padding: 7px 10px; font-size: 12px; }
-  .add-input:focus { outline: none; border-color: #3b82f6; }
-  .add-name-input { width: 100%; background: #161b22; border: 1px solid #21262d; color: #e6edf3; border-radius: 5px; padding: 7px 10px; font-size: 12px; margin-bottom: 6px; }
-  .add-name-input:focus { outline: none; border-color: #3b82f6; }
-  .help-text { font-size: 10px; color: #484f58; margin-top: 4px; }
-  .search-results { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; max-height: 360px; overflow-y: auto; }
-  .search-result { display: flex; align-items: center; gap: 8px; background: #161b22; border: 1px solid #21262d; border-radius: 5px; padding: 7px 10px; cursor: pointer; }
-  .search-result:hover { border-color: #3b82f6; }
-  .search-result-name { flex: 1; font-size: 12px; }
-  .pending-add { margin-top: 8px; background: #0d1a2a; border: 1px solid #1e3a5a; border-radius: 8px; padding: 12px; }
-  .pending-add-label { font-size: 10px; color: #60a5fa; font-weight: 600; letter-spacing: 1px; margin-bottom: 8px; }
-  .pending-add-row { display: flex; gap: 6px; align-items: center; }
-  .pending-add input { flex: 1; background: #0d1117; border: 1px solid #21262d; color: #e6edf3; border-radius: 5px; padding: 7px 10px; font-size: 12px; }
-  .pending-add input:focus { outline: none; border-color: #3b82f6; }
-  .pending-add-url { font-size: 10px; color: #6b7280; margin-top: 6px; word-break: break-all; }
-  .menu-popover { position: absolute; right: 16px; background: #161b22; border: 1px solid #2a3340; border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 50; min-width: 160px; }
-  .menu-item { padding: 8px 12px; font-size: 12px; cursor: pointer; border-radius: 4px; }
-  .menu-item:hover { background: #1c2128; }
-  .menu-item.danger { color: #f87171; }
-  .menu-item.danger:hover { background: #2a1414; }
-  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    line-height: 1.47;
+  }
+
+  .container { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding: 0 4px;
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.022em;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 5px 11px;
+    border-radius: 980px;
+    transition: all 200ms ease;
+  }
+  .badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .badge.online {
+    color: var(--success);
+    background: var(--success-soft);
+  }
+  .badge.online::before { background: var(--success); }
+  .badge.offline {
+    color: var(--danger);
+    background: rgba(255, 59, 48, 0.1);
+  }
+  .badge.offline::before { background: var(--danger); }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 18px 22px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+  }
+  .card-body { padding: 4px 22px 18px; }
+  .card-body.tight { padding: 0; }
+
+  /* Now Playing */
+  .now-playing {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 22px;
+  }
+  .np-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .np-icon.idle { background: rgba(0, 0, 0, 0.04); color: var(--text-tertiary); }
+  .np-info { flex: 1; min-width: 0; }
+  .np-status {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    margin-bottom: 2px;
+  }
+  .np-status.live { color: var(--success); }
+  .np-name {
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .np-name.empty { color: var(--text-secondary); font-weight: 400; }
+
+  /* Preset grid */
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 4px 22px 22px;
+  }
+  .preset-btn {
+    aspect-ratio: 1.6;
+    background: var(--card);
+    border: 1px solid var(--divider-soft);
+    border-radius: 14px;
+    padding: 12px 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 120ms ease;
+    -webkit-appearance: none;
+    font-family: inherit;
+  }
+  .preset-btn:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .preset-btn:active { transform: scale(0.97); }
+  .preset-btn.active {
+    border: 2px solid var(--success);
+    background: var(--success-soft);
+    padding: 11px 9px;
+  }
+  .preset-btn.empty {
+    border-style: dashed;
+    background: rgba(0, 0, 0, 0.015);
+  }
+  .preset-num {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .preset-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .preset-btn.active .preset-num { color: var(--success); }
+  .preset-empty-label {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+  }
+
+  /* Station list */
+  .station-list { display: flex; flex-direction: column; }
+  .station-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 22px;
+    border-top: 1px solid var(--divider-soft);
+    transition: background 120ms ease;
+  }
+  .station-row:first-of-type { border-top: none; }
+  .station-row:hover { background: rgba(0, 0, 0, 0.02); }
+  .station-row.playing { background: var(--success-soft); }
+  .station-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .station-row.playing .station-icon {
+    background: rgba(52, 199, 89, 0.15);
+    color: var(--success);
+  }
+  .station-info { flex: 1; min-width: 0; }
+  .station-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .station-preset {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 500;
+    margin-top: 1px;
+  }
+  .empty-state {
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 14px;
+    padding: 26px 22px;
+  }
+
+  /* Forms */
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  .input,
+  textarea.input {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--divider);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--text);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+    -webkit-appearance: none;
+  }
+  .input:focus, textarea.input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  }
+  .field-help {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .add-row { display: flex; gap: 8px; }
+  .add-row .input { flex: 1; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    border: none;
+    border-radius: 980px;
+    cursor: pointer;
+    transition: all 100ms ease;
+    -webkit-appearance: none;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { background: rgba(0, 0, 0, 0.06); color: var(--text); }
+  .btn-secondary:hover { background: rgba(0, 0, 0, 0.1); }
+  .btn-danger { background: transparent; color: var(--danger); }
+  .btn-danger:hover { background: rgba(255, 59, 48, 0.1); }
+  .btn-play { background: var(--success); color: white; padding: 7px 12px; }
+  .btn-play:hover { background: #2bb14f; }
+  .btn-stop { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
+  .btn-stop:hover { background: rgba(255, 59, 48, 0.18); }
+  .btn-menu {
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 18px;
+    padding: 4px 10px;
+    line-height: 1;
+  }
+  .btn-menu:hover { background: rgba(0, 0, 0, 0.06); color: var(--text); }
+  .btn-icon {
+    padding: 7px 11px;
+    font-size: 14px;
+  }
+  .btn-large { padding: 10px 20px; font-size: 14px; }
+
+  /* Pending add tray + search results */
+  .pending-add {
+    margin-top: 12px;
+    background: var(--accent-soft);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .pending-add-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .pending-add-row { display: flex; gap: 8px; align-items: center; }
+  .pending-add input {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+  }
+  .pending-add input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  }
+  .pending-add-url {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 8px;
+    word-break: break-all;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  .search-results {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 380px;
+    overflow-y: auto;
+  }
+  .search-result {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--divider-soft);
+    border-radius: 10px;
+    padding: 10px 12px;
+    transition: all 120ms ease;
+  }
+  .search-result:hover { border-color: var(--accent); }
+  .search-result-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .search-result-name {
+    flex: 1;
+    font-size: 14px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Station action menu */
+  .menu-popover {
+    position: absolute;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: var(--shadow-lg);
+    z-index: 50;
+    min-width: 200px;
+    border: 1px solid var(--divider-soft);
+  }
+  .menu-item {
+    padding: 9px 12px;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .menu-item:hover { background: rgba(0, 0, 0, 0.05); }
+  .menu-item.danger { color: var(--danger); }
+  .menu-item.danger:hover { background: rgba(255, 59, 48, 0.08); }
+  .menu-divider { height: 1px; background: var(--divider-soft); margin: 4px 0; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
   .modal-overlay.open { display: flex; }
-  .modal { background: #161b22; border: 1px solid #21262d; border-radius: 10px; width: 90%; max-width: 380px; overflow: hidden; }
-  .modal-header { background: #0d1117; padding: 12px 16px; font-size: 12px; font-weight: 700; color: #3b82f6; border-bottom: 1px solid #21262d; }
-  .modal-body { padding: 14px 16px; }
-  .current-assignment { display: flex; align-items: center; gap: 10px; background: #0d2a0d; border: 1px solid #1a4a1a; border-radius: 8px; padding: 10px; margin-bottom: 14px; }
-  .current-label { font-size: 10px; color: #4ade80; font-weight: 600; }
-  .current-name { font-size: 13px; font-weight: 600; }
-  .modal-actions { display: flex; gap: 8px; margin-top: 12px; }
-  .modal-actions .btn { flex: 1; padding: 8px; }
-  .btn-cancel { background: #1c2128; border: 1px solid #21262d; color: #8b949e; }
-  .btn-confirm { background: #1d4ed8; color: white; }
+  .modal {
+    background: var(--card);
+    border-radius: 18px;
+    width: 100%;
+    max-width: 440px;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+    animation: modal-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  @keyframes modal-in {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal-header {
+    padding: 22px 22px 8px;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: var(--text);
+  }
+  .modal-body { padding: 8px 22px 18px; }
+
+  .current-assignment {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--success-soft);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .current-assignment .icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(52, 199, 89, 0.18);
+    color: var(--success);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .current-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--success);
+    font-weight: 600;
+  }
+  .current-name {
+    font-size: 16px;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .modal-actions .btn { flex: 1; padding: 10px 16px; font-size: 14px; }
+  .modal-replace-note {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+  .modal-replace-note strong { color: var(--text); font-weight: 600; }
+
+  .picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+  .picker-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--divider-soft);
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 120ms ease;
+  }
+  .picker-item:hover { border-color: var(--accent); }
+  .picker-item.selected {
+    border: 2px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 9px 11px;
+  }
+  .picker-item-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .picker-item-name { flex: 1; font-size: 14px; font-weight: 500; }
+  .picker-item-preset {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .check { color: var(--accent); font-size: 16px; font-weight: 600; }
   .btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-change { background: #1c2128; border: 1px solid #21262d; color: #8b949e; flex: 1; }
-  .picker-list { display: flex; flex-direction: column; gap: 5px; max-height: 250px; overflow-y: auto; }
-  .picker-item { display: flex; align-items: center; gap: 8px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
-  .picker-item:hover { border-color: #3b82f6; }
-  .picker-item.selected { border: 2px solid #3b82f6; background: #0d1a2a; }
-  .picker-item-name { flex: 1; font-size: 12px; font-weight: 600; }
-  .picker-item-preset { font-size: 10px; color: #3b82f6; font-weight: 600; }
-  .check { color: #3b82f6; font-size: 14px; }
+
+  /* Small screens */
+  @media (max-width: 540px) {
+    .container { padding: 20px 14px 48px; }
+    .header h1 { font-size: 24px; }
+    .preset-btn { aspect-ratio: 1.4; }
+  }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>SoundTouch Radio Bridge</h1>
-  <span id="badge" class="badge offline">● Offline</span>
-</div>
+<div class="container">
+  <div class="header">
+    <h1>SoundTouch Radio</h1>
+    <span id="badge" class="badge offline">Offline</span>
+  </div>
 
-<div class="section" id="now-playing-section">
-  <div class="section-title">NOW PLAYING</div>
-  <div class="now-playing">
-    <div style="font-size:28px">📻</div>
-    <div class="now-playing-info">
-      <div id="now-playing-name" class="now-playing-empty">Nothing playing</div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Now Playing</span></div>
+    <div class="now-playing">
+      <div id="np-icon" class="np-icon idle">📻</div>
+      <div class="np-info">
+        <div id="np-status" class="np-status">Idle</div>
+        <div id="np-name" class="np-name empty">Nothing playing</div>
+      </div>
+      <button class="btn btn-stop" id="btn-stop" style="display:none" onclick="stopPlayback()">Stop</button>
     </div>
-    <button class="btn btn-stop" id="btn-stop" style="display:none" onclick="stopPlayback()">■ Stop</button>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Presets</span></div>
+    <div class="preset-grid" id="preset-grid"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Stations</span>
+      <button class="btn btn-secondary" onclick="focusAddInput()">+ Add</button>
+    </div>
+    <div class="card-body tight" id="station-list"></div>
+  </div>
+
+  <div class="card" id="add-section">
+    <div class="card-header"><span class="card-title">Add Station</span></div>
+    <div class="card-body">
+      <div class="add-row">
+        <input class="input" id="add-input" placeholder="Paste a stream URL or search TuneIn…" onkeydown="if(event.key==='Enter')handleAddInput()">
+        <button class="btn btn-primary btn-large" onclick="handleAddInput()">Go</button>
+      </div>
+      <div class="field-help">Paste an MP3/AAC/HLS URL to add directly, or type a station name to search TuneIn.</div>
+      <div id="pending-add" class="pending-add" style="display:none"></div>
+      <div id="search-results" class="search-results"></div>
+    </div>
   </div>
 </div>
 
-<div class="section">
-  <div class="section-title">PRESETS</div>
-  <div class="preset-grid" id="preset-grid"></div>
-</div>
-
-<div class="section">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <div class="section-title" style="margin-bottom:0">STATIONS</div>
-    <button class="btn btn-add" onclick="focusAddInput()">+ Add</button>
-  </div>
-  <div class="station-list" id="station-list"></div>
-</div>
-
-<div class="section" id="add-section">
-  <div class="section-title">ADD STATION</div>
-  <div class="add-row">
-    <input class="add-input" id="add-input" placeholder="Paste a stream URL or search TuneIn…" onkeydown="if(event.key==='Enter')handleAddInput()">
-    <button class="btn btn-add" onclick="handleAddInput()">Go</button>
-  </div>
-  <div class="help-text">Paste an MP3/AAC/HLS URL to add directly, or type a station name to search TuneIn.</div>
-  <div id="pending-add" class="pending-add" style="display:none"></div>
-  <div id="search-results" class="search-results"></div>
-</div>
-
-<!-- Preset modal -->
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal">
     <div class="modal-header" id="modal-title">Preset</div>
@@ -162,20 +649,28 @@ async function fetchAll() {
 
 function updateBadge(online) {
   const b = document.getElementById('badge');
-  b.textContent = online ? '● Online' : '● Offline';
+  b.textContent = online ? 'Online' : 'Offline';
   b.className = 'badge ' + (online ? 'online' : 'offline');
 }
 
 function updateNowPlaying(np) {
-  const el = document.getElementById('now-playing-name');
+  const icon = document.getElementById('np-icon');
+  const status = document.getElementById('np-status');
+  const name = document.getElementById('np-name');
   const stopBtn = document.getElementById('btn-stop');
   if (np) {
-    el.textContent = np;
-    el.className = 'now-playing-name';
+    icon.className = 'np-icon';
+    status.textContent = 'Now Playing';
+    status.className = 'np-status live';
+    name.textContent = np;
+    name.className = 'np-name';
     stopBtn.style.display = '';
   } else {
-    el.textContent = 'Nothing playing';
-    el.className = 'now-playing-empty';
+    icon.className = 'np-icon idle';
+    status.textContent = 'Idle';
+    status.className = 'np-status';
+    name.textContent = 'Nothing playing';
+    name.className = 'np-name empty';
     stopBtn.style.display = 'none';
   }
 }
@@ -186,10 +681,12 @@ function renderPresets() {
   for (let i = 1; i <= 6; i++) {
     const sid = presets[i] || presets[String(i)];
     const st = sid ? stations.find(s => s.id === sid) : null;
-    const btn = document.createElement('div');
+    const btn = document.createElement('button');
     btn.className = 'preset-btn' + (st ? '' : ' empty') + (sid && sid === nowPlayingStationId ? ' active' : '');
     btn.innerHTML = `<div class="preset-num">${i}</div>` +
-      (st ? `<div class="preset-name">${st.name}</div>` : `<div class="preset-empty-label">+ assign</div>`);
+      (st
+        ? `<div class="preset-name">${escapeHTML(st.name)}</div>`
+        : `<div class="preset-empty-label">+ assign</div>`);
     btn.onclick = () => openPresetModal(i);
     grid.appendChild(btn);
   }
@@ -199,7 +696,7 @@ function renderStations() {
   const list = document.getElementById('station-list');
   list.innerHTML = '';
   if (stations.length === 0) {
-    list.innerHTML = '<div style="color:#484f58;font-size:12px;padding:8px 0">No stations yet. Add one below.</div>';
+    list.innerHTML = '<div class="empty-state">No stations yet. Add one below.</div>';
     return;
   }
   stations.forEach(st => {
@@ -210,10 +707,12 @@ function renderStations() {
     const row = document.createElement('div');
     row.className = 'station-row' + (st.id === nowPlayingStationId ? ' playing' : '');
     row.innerHTML = `
-      <div style="font-size:18px">📻</div>
-      <div class="station-name">${st.name}</div>
-      ${assignedSlots ? `<div class="station-preset">${assignedSlots}</div>` : ''}
-      <button class="btn btn-play" onclick="playStation('${st.id}')">▶</button>
+      <div class="station-icon">📻</div>
+      <div class="station-info">
+        <div class="station-name">${escapeHTML(st.name)}</div>
+        ${assignedSlots ? `<div class="station-preset">${escapeHTML(assignedSlots)}</div>` : ''}
+      </div>
+      <button class="btn btn-play btn-icon" onclick="playStation('${st.id}')">▶</button>
       <button class="btn btn-menu" onclick="openStationMenu(event,'${st.id}')">⋯</button>
     `;
     list.appendChild(row);
@@ -248,16 +747,15 @@ function openStationMenu(e, stationId) {
   }).join('');
   menu.innerHTML = `
     <div class="menu-item" onclick="playStation('${st.id}');closeStationMenu()">▶ Play now</div>
-    <div style="height:1px;background:#21262d;margin:4px 0"></div>
+    <div class="menu-divider"></div>
     ${presetButtons}
-    <div style="height:1px;background:#21262d;margin:4px 0"></div>
-    <div class="menu-item danger" onclick="confirmDelete('${st.id}', '${st.name.replace(/'/g,"\\'")}')">🗑 Delete</div>
+    <div class="menu-divider"></div>
+    <div class="menu-item danger" onclick="confirmDelete('${st.id}', '${escapeAttr(st.name)}')">Delete</div>
   `;
   document.body.appendChild(menu);
   const rect = e.target.getBoundingClientRect();
-  menu.style.top = (window.scrollY + rect.bottom + 4) + 'px';
+  menu.style.top = (window.scrollY + rect.bottom + 6) + 'px';
   menu.style.right = (window.innerWidth - rect.right) + 'px';
-  // dismiss on next click anywhere
   setTimeout(() => document.addEventListener('click', closeStationMenu, { once: true }), 0);
 }
 
@@ -302,15 +800,15 @@ function showViewModal(slot, st) {
   document.getElementById('modal-title').textContent = `Preset ${slot}`;
   document.getElementById('modal-body').innerHTML = `
     <div class="current-assignment">
-      <div style="font-size:22px">📻</div>
+      <div class="icon">📻</div>
       <div>
         <div class="current-label">Currently assigned</div>
-        <div class="current-name">${st.name}</div>
+        <div class="current-name">${escapeHTML(st.name)}</div>
       </div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-play" style="flex:1" onclick="playStation('${st.id}');closeModal()">▶ Play now</button>
-      <button class="btn btn-change" onclick="showPickerModal(${slot}, '${st.id}')">Change…</button>
+      <button class="btn btn-play" onclick="playStation('${st.id}');closeModalForce()">▶ Play now</button>
+      <button class="btn btn-secondary" onclick="showPickerModal(${slot}, '${st.id}')">Change…</button>
     </div>
   `;
 }
@@ -329,19 +827,19 @@ function showPickerModal(slot, currentId) {
       .map(([s]) => `Preset ${s}`)
       .join(', ');
     return `<div class="picker-item" data-id="${st.id}" onclick="selectPickerItem(this,'${st.id}')">
-      <div style="font-size:14px">📻</div>
-      <div class="picker-item-name">${st.name}</div>
-      ${assignedSlots ? `<div class="picker-item-preset">${assignedSlots}</div>` : ''}
+      <div class="picker-item-icon">📻</div>
+      <div class="picker-item-name">${escapeHTML(st.name)}</div>
+      ${assignedSlots ? `<div class="picker-item-preset">${escapeHTML(assignedSlots)}</div>` : ''}
       <div class="check" style="display:none">✓</div>
     </div>`;
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
-    ${currentSt ? `<div style="font-size:11px;color:#8b949e;margin-bottom:10px">Replace <strong style="color:#f87171">${currentSt.name}</strong>:</div>` : ''}
-    <div class="picker-list">${itemsHTML || '<div style="color:#484f58;font-size:12px">No stations in library. Add one first.</div>'}</div>
+    ${currentSt ? `<div class="modal-replace-note">Replace <strong>${escapeHTML(currentSt.name)}</strong>:</div>` : ''}
+    <div class="picker-list">${itemsHTML || '<div class="empty-state">No stations in library. Add one first.</div>'}</div>
     <div class="modal-actions">
-      <button class="btn btn-cancel" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-confirm" id="btn-confirm" disabled onclick="confirmAssign()">Assign</button>
+      <button class="btn btn-secondary" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary btn-confirm" id="btn-confirm" disabled onclick="confirmAssign()">Assign</button>
     </div>
   `;
 }
@@ -367,12 +865,16 @@ async function confirmAssign() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({slot: modalSlot, stationId: pickerSelected})
   });
-  closeModal();
+  closeModalForce();
   await fetchAll();
 }
 
 function closeModal(event) {
   if (event && event.target !== document.getElementById('modal-overlay')) return;
+  closeModalForce();
+}
+
+function closeModalForce() {
   document.getElementById('modal-overlay').classList.remove('open');
   modalSlot = null;
   pickerSelected = null;
@@ -381,14 +883,12 @@ function closeModal(event) {
 function focusAddInput() {
   const el = document.getElementById('add-input');
   document.getElementById('add-section').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  // Focus after the scroll completes so the keyboard pops up on mobile.
   setTimeout(() => el.focus({ preventScroll: true }), 350);
 }
 
 async function handleAddInput() {
   const input = document.getElementById('add-input').value.trim();
   if (!input) return;
-  // URL: show pending-add card with editable name (default to hostname).
   if (input.startsWith('http://') || input.startsWith('https://')) {
     let defaultName = '';
     try { defaultName = new URL(input).hostname; } catch(e) { defaultName = ''; }
@@ -396,7 +896,6 @@ async function handleAddInput() {
     document.getElementById('search-results').innerHTML = '';
     return;
   }
-  // Search query: hit TuneIn.
   const res = await fetch('/api/search?q=' + encodeURIComponent(input));
   if (!res.ok) {
     alert('Search failed. Try pasting a direct stream URL instead.');
@@ -407,7 +906,7 @@ async function handleAddInput() {
   container.innerHTML = '';
   document.getElementById('pending-add').style.display = 'none';
   if (!results || results.length === 0) {
-    container.innerHTML = '<div style="color:#484f58;font-size:12px;padding:4px 0">No results. Try a direct URL.</div>';
+    container.innerHTML = '<div class="empty-state">No results. Try a direct URL.</div>';
     return;
   }
   results.forEach(r => {
@@ -416,7 +915,11 @@ async function handleAddInput() {
     const logo = r.logo || '';
     const el = document.createElement('div');
     el.className = 'search-result';
-    el.innerHTML = `<div style="font-size:14px">📻</div><div class="search-result-name">${escapeHTML(name)}</div><button class="btn btn-add">Add</button>`;
+    el.innerHTML = `
+      <div class="search-result-icon">📻</div>
+      <div class="search-result-name">${escapeHTML(name)}</div>
+      <button class="btn btn-primary">Add</button>
+    `;
     el.querySelector('button').onclick = () => {
       showPendingAdd(name, url, logo);
       container.innerHTML = '';
@@ -429,11 +932,11 @@ function showPendingAdd(name, url, logo) {
   const tray = document.getElementById('pending-add');
   tray.style.display = '';
   tray.innerHTML = `
-    <div class="pending-add-label">NAME THIS STATION</div>
+    <div class="pending-add-label">Name this station</div>
     <div class="pending-add-row">
       <input type="text" id="pending-name" value="${escapeAttr(name)}" placeholder="Station name" onkeydown="if(event.key==='Enter')confirmPendingAdd('${escapeAttr(url)}','${escapeAttr(logo)}')">
-      <button class="btn btn-add" onclick="confirmPendingAdd('${escapeAttr(url)}','${escapeAttr(logo)}')">Add</button>
-      <button class="btn btn-cancel" onclick="cancelPendingAdd()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmPendingAdd('${escapeAttr(url)}','${escapeAttr(logo)}')">Add</button>
+      <button class="btn btn-secondary" onclick="cancelPendingAdd()">Cancel</button>
     </div>
     <div class="pending-add-url">${escapeHTML(url)}</div>
   `;
