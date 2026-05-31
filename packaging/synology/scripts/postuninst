@@ -1,5 +1,0 @@
-#!/bin/sh
-# Run after uninstall — DSM removes the package directory itself.
-# We do NOT delete /volume1/... user data here; if you want a clean wipe,
-# remove /var/packages/SoundTouchBridge manually.
-exit 0
