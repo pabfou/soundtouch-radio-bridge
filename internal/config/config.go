@@ -245,3 +245,58 @@ func (s *Store) Active() (Speaker, bool) {
 	}
 	return s.cfg.Speakers[0], true
 }
+
+// RemoveSpeaker deletes a speaker by name. Returns ErrUnknownSpeaker if not
+// present, ErrActiveSpeaker if attempting to remove the currently-active one.
+func (s *Store) RemoveSpeaker(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	activeName := s.cfg.ActiveSpeaker
+	if activeName == "" && len(s.cfg.Speakers) > 0 {
+		activeName = s.cfg.Speakers[0].Name
+	}
+	if name == activeName {
+		return ErrActiveSpeaker
+	}
+	idx := -1
+	for i, sp := range s.cfg.Speakers {
+		if sp.Name == name {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return ErrUnknownSpeaker
+	}
+	s.cfg.Speakers = append(s.cfg.Speakers[:idx], s.cfg.Speakers[idx+1:]...)
+	return s.save()
+}
+
+// RenameSpeaker changes a speaker's name. If the renamed speaker is the
+// active one, ActiveSpeaker is updated in the same locked save.
+func (s *Store) RenameSpeaker(oldName, newName string) error {
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		return ErrEmptyName
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx := -1
+	for i, sp := range s.cfg.Speakers {
+		if sp.Name == oldName {
+			idx = i
+		}
+		if sp.Name == newName && sp.Name != oldName {
+			return ErrDuplicateName
+		}
+	}
+	if idx < 0 {
+		return ErrUnknownSpeaker
+	}
+	wasActive := s.cfg.ActiveSpeaker == oldName
+	s.cfg.Speakers[idx].Name = newName
+	if wasActive {
+		s.cfg.ActiveSpeaker = newName
+	}
+	return s.save()
+}

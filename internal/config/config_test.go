@@ -179,7 +179,7 @@ func TestSetActive_UnknownName(t *testing.T) {
 	}
 	s, _ := config.NewStore(path)
 	if err := s.SetActive("Nope"); !errors.Is(err, config.ErrUnknownSpeaker) {
-		t.Fatalf("got %v, want ErrUnknownSpeaker", err)
+		t.Fatalf("got %v, want config.ErrUnknownSpeaker", err)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestAddSpeaker_DuplicateName(t *testing.T) {
 	}
 	s, _ := config.NewStore(path)
 	if err := s.AddSpeaker(config.Speaker{Name: "A", IP: "2.2.2.2"}); !errors.Is(err, config.ErrDuplicateName) {
-		t.Fatalf("got %v, want ErrDuplicateName", err)
+		t.Fatalf("got %v, want config.ErrDuplicateName", err)
 	}
 }
 
@@ -217,7 +217,7 @@ func TestAddSpeaker_EmptyName(t *testing.T) {
 	_ = os.WriteFile(path, []byte("speakers: []\n"), 0644)
 	s, _ := config.NewStore(path)
 	if err := s.AddSpeaker(config.Speaker{Name: "   ", IP: "1.1.1.1"}); !errors.Is(err, config.ErrEmptyName) {
-		t.Fatalf("got %v, want ErrEmptyName", err)
+		t.Fatalf("got %v, want config.ErrEmptyName", err)
 	}
 }
 
@@ -227,6 +227,103 @@ func TestAddSpeaker_InvalidIP(t *testing.T) {
 	_ = os.WriteFile(path, []byte("speakers: []\n"), 0644)
 	s, _ := config.NewStore(path)
 	if err := s.AddSpeaker(config.Speaker{Name: "X", IP: "not-an-ip"}); !errors.Is(err, config.ErrInvalidIP) {
-		t.Fatalf("got %v, want ErrInvalidIP", err)
+		t.Fatalf("got %v, want config.ErrInvalidIP", err)
+	}
+}
+
+func TestRemoveSpeaker_HappyPath(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("active_speaker: A\nspeakers:\n  - name: A\n    ip: 1.1.1.1\n  - name: B\n    ip: 2.2.2.2\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.RemoveSpeaker("B"); err != nil {
+		t.Fatal(err)
+	}
+	sp := s.Speakers()
+	if len(sp) != 1 || sp[0].Name != "A" {
+		t.Fatalf("got %+v", sp)
+	}
+}
+
+func TestRemoveSpeaker_Unknown(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("speakers:\n  - name: A\n    ip: 1.1.1.1\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.RemoveSpeaker("Nope"); !errors.Is(err, config.ErrUnknownSpeaker) {
+		t.Fatalf("got %v, want config.ErrUnknownSpeaker", err)
+	}
+}
+
+func TestRemoveSpeaker_RejectsActive(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("active_speaker: A\nspeakers:\n  - name: A\n    ip: 1.1.1.1\n  - name: B\n    ip: 2.2.2.2\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.RemoveSpeaker("A"); !errors.Is(err, config.ErrActiveSpeaker) {
+		t.Fatalf("got %v, want config.ErrActiveSpeaker", err)
+	}
+}
+
+func TestRenameSpeaker_HappyPath(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("speakers:\n  - name: A\n    ip: 1.1.1.1\n  - name: B\n    ip: 2.2.2.2\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.RenameSpeaker("A", "Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	sp := s.Speakers()
+	if sp[0].Name != "Alpha" {
+		t.Fatalf("got %q, want Alpha", sp[0].Name)
+	}
+}
+
+func TestRenameSpeaker_RenameOfActiveUpdatesActiveSpeaker(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("active_speaker: A\nspeakers:\n  - name: A\n    ip: 1.1.1.1\n  - name: B\n    ip: 2.2.2.2\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.RenameSpeaker("A", "Alpha"); err != nil {
+		t.Fatal(err)
+	}
+	act, _ := s.Active()
+	if act.Name != "Alpha" {
+		t.Fatalf("active = %q, want Alpha", act.Name)
+	}
+	s2, _ := config.NewStore(path)
+	act2, _ := s2.Active()
+	if act2.Name != "Alpha" {
+		t.Fatalf("after reload, active = %q, want Alpha", act2.Name)
+	}
+}
+
+func TestRenameSpeaker_Unknown(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("speakers:\n  - name: A\n    ip: 1.1.1.1\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.RenameSpeaker("Nope", "Anything"); !errors.Is(err, config.ErrUnknownSpeaker) {
+		t.Fatalf("got %v, want config.ErrUnknownSpeaker", err)
+	}
+}
+
+func TestRenameSpeaker_Duplicate(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("speakers:\n  - name: A\n    ip: 1.1.1.1\n  - name: B\n    ip: 2.2.2.2\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.RenameSpeaker("A", "B"); !errors.Is(err, config.ErrDuplicateName) {
+		t.Fatalf("got %v, want config.ErrDuplicateName", err)
+	}
+}
+
+func TestRenameSpeaker_EmptyNewName(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("speakers:\n  - name: A\n    ip: 1.1.1.1\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.RenameSpeaker("A", "   "); !errors.Is(err, config.ErrEmptyName) {
+		t.Fatalf("got %v, want config.ErrEmptyName", err)
 	}
 }
