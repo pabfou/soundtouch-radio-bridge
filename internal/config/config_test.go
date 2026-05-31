@@ -182,3 +182,51 @@ func TestSetActive_UnknownName(t *testing.T) {
 		t.Fatalf("got %v, want ErrUnknownSpeaker", err)
 	}
 }
+
+func TestAddSpeaker_HappyPath(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	if err := os.WriteFile(path, []byte("speakers: []\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := config.NewStore(path)
+	if err := s.AddSpeaker(config.Speaker{Name: "Kitchen", IP: "192.168.1.50"}); err != nil {
+		t.Fatal(err)
+	}
+	sp := s.Speakers()
+	if len(sp) != 1 || sp[0].Name != "Kitchen" {
+		t.Fatalf("got %+v", sp)
+	}
+}
+
+func TestAddSpeaker_DuplicateName(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	if err := os.WriteFile(path, []byte("speakers:\n  - name: A\n    ip: 1.1.1.1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := config.NewStore(path)
+	if err := s.AddSpeaker(config.Speaker{Name: "A", IP: "2.2.2.2"}); !errors.Is(err, config.ErrDuplicateName) {
+		t.Fatalf("got %v, want ErrDuplicateName", err)
+	}
+}
+
+func TestAddSpeaker_EmptyName(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("speakers: []\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.AddSpeaker(config.Speaker{Name: "   ", IP: "1.1.1.1"}); !errors.Is(err, config.ErrEmptyName) {
+		t.Fatalf("got %v, want ErrEmptyName", err)
+	}
+}
+
+func TestAddSpeaker_InvalidIP(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	_ = os.WriteFile(path, []byte("speakers: []\n"), 0644)
+	s, _ := config.NewStore(path)
+	if err := s.AddSpeaker(config.Speaker{Name: "X", IP: "not-an-ip"}); !errors.Is(err, config.ErrInvalidIP) {
+		t.Fatalf("got %v, want ErrInvalidIP", err)
+	}
+}

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"regexp"
 	"strings"
@@ -203,6 +204,27 @@ func (s *Store) SetActive(name string) error {
 		}
 	}
 	return ErrUnknownSpeaker
+}
+
+// AddSpeaker validates and appends a new speaker. Name is trimmed; IP must
+// parse as net.IP.
+func (s *Store) AddSpeaker(spk Speaker) error {
+	spk.Name = strings.TrimSpace(spk.Name)
+	if spk.Name == "" {
+		return ErrEmptyName
+	}
+	if net.ParseIP(spk.IP) == nil {
+		return ErrInvalidIP
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, existing := range s.cfg.Speakers {
+		if existing.Name == spk.Name {
+			return ErrDuplicateName
+		}
+	}
+	s.cfg.Speakers = append(s.cfg.Speakers, spk)
+	return s.save()
 }
 
 // Active resolves the active speaker. Returns ok=false if no speakers exist.
