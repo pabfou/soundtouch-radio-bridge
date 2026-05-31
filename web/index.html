@@ -1139,13 +1139,12 @@ async function renderProfilesModal() {
       const row = el.closest('[data-name]');
       const name = row.dataset.name;
       if (action === 'activate') {
-        if (name === profilesData.active) return;
         const res = await fetch('/api/profiles/active', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({name}),
         });
-        if (res.ok) { await renderProfilesModal(); await loadProfiles(); }
+        if (res.ok) { await fetchAll(); await renderProfilesModal(); await loadProfiles(); }
         else alert('Activate failed: ' + (await res.text()));
       } else if (action === 'load') {
         if (!confirm(`Replace current stations and presets with the "${name}" profile?`)) return;
