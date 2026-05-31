@@ -40,6 +40,14 @@ type Store struct {
 	path string
 }
 
+var (
+	ErrUnknownSpeaker = errors.New("speaker not found")
+	ErrDuplicateName  = errors.New("speaker name already exists")
+	ErrEmptyName      = errors.New("speaker name is empty")
+	ErrInvalidIP      = errors.New("speaker ip is invalid")
+	ErrActiveSpeaker  = errors.New("cannot remove the active speaker")
+)
+
 var nonAlphanumRE = regexp.MustCompile(`[^a-z0-9]+`)
 
 func GenerateID(name string, existing []Station) string {
@@ -181,6 +189,20 @@ func (s *Store) Speakers() []Speaker {
 	out := make([]Speaker, len(s.cfg.Speakers))
 	copy(out, s.cfg.Speakers)
 	return out
+}
+
+// SetActive sets the active speaker by name. Returns ErrUnknownSpeaker if no
+// saved speaker matches name. Persists to disk.
+func (s *Store) SetActive(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sp := range s.cfg.Speakers {
+		if sp.Name == name {
+			s.cfg.ActiveSpeaker = name
+			return s.save()
+		}
+	}
+	return ErrUnknownSpeaker
 }
 
 // Active resolves the active speaker. Returns ok=false if no speakers exist.

@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -145,5 +146,39 @@ func TestActive_FalseWhenNoSpeakers(t *testing.T) {
 	_, ok := s.Active()
 	if ok {
 		t.Fatal("expected ok=false when no speakers")
+	}
+}
+
+func TestSetActive_HappyPath(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	if err := os.WriteFile(path, []byte("speakers:\n  - name: A\n    ip: 1.1.1.1\n  - name: B\n    ip: 2.2.2.2\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := config.NewStore(path)
+	if err := s.SetActive("B"); err != nil {
+		t.Fatal(err)
+	}
+	act, _ := s.Active()
+	if act.Name != "B" {
+		t.Fatalf("active = %q, want B", act.Name)
+	}
+	// Verify persisted.
+	s2, _ := config.NewStore(path)
+	act2, _ := s2.Active()
+	if act2.Name != "B" {
+		t.Fatalf("after reload, active = %q, want B", act2.Name)
+	}
+}
+
+func TestSetActive_UnknownName(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.yaml"
+	if err := os.WriteFile(path, []byte("speakers:\n  - name: A\n    ip: 1.1.1.1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := config.NewStore(path)
+	if err := s.SetActive("Nope"); !errors.Is(err, config.ErrUnknownSpeaker) {
+		t.Fatalf("got %v, want ErrUnknownSpeaker", err)
 	}
 }
