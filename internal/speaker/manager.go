@@ -41,8 +41,11 @@ func (m *Manager) playbackURL(st config.Station) string {
 	m.mu.RLock()
 	b := m.bridgeURL
 	m.mu.RUnlock()
-	// SoundTouch 10 (2015 hardware) can't fetch HTTPS — always proxy those.
-	mustProxy := st.NeedsProxy || strings.HasPrefix(st.URL, "https://")
+	// SoundTouch 10 (2015 hardware) can't fetch HTTPS and can't parse HLS
+	// playlists — always proxy those so /stream/{id} transmuxes/relays.
+	mustProxy := st.NeedsProxy ||
+		strings.HasPrefix(st.URL, "https://") ||
+		strings.HasSuffix(st.URL, ".m3u8")
 	if !mustProxy || b == "" {
 		log.Printf("speaker: playing %q via direct URL %s", st.Name, st.URL)
 		return st.URL
