@@ -28,11 +28,19 @@ type Speaker struct {
 	IP   string `yaml:"ip" json:"ip"`
 }
 
+type Profile struct {
+	Name     string         `yaml:"name" json:"name"`
+	Stations []Station      `yaml:"stations" json:"stations"`
+	Presets  map[int]string `yaml:"presets" json:"presets"`
+}
+
 type Config struct {
 	Speakers      []Speaker      `yaml:"speakers"`
 	ActiveSpeaker string         `yaml:"active_speaker,omitempty"`
 	Stations      []Station      `yaml:"stations"`
 	Presets       map[int]string `yaml:"presets"`
+	Profiles      []Profile      `yaml:"profiles,omitempty"`
+	ActiveProfile string         `yaml:"active_profile,omitempty"`
 }
 
 type Store struct {
@@ -42,11 +50,15 @@ type Store struct {
 }
 
 var (
-	ErrUnknownSpeaker = errors.New("speaker not found")
-	ErrDuplicateName  = errors.New("speaker name already exists")
-	ErrEmptyName      = errors.New("speaker name is empty")
-	ErrInvalidIP      = errors.New("speaker ip is invalid")
-	ErrActiveSpeaker  = errors.New("cannot remove the active speaker")
+	ErrUnknownSpeaker   = errors.New("speaker not found")
+	ErrDuplicateName    = errors.New("speaker name already exists")
+	ErrEmptyName        = errors.New("name is empty")
+	ErrInvalidIP        = errors.New("speaker ip is invalid")
+	ErrActiveSpeaker    = errors.New("cannot remove the active speaker")
+	ErrUnknownProfile   = errors.New("profile not found")
+	ErrDuplicateProfile = errors.New("profile name already exists")
+	ErrActiveProfile    = errors.New("cannot remove the active profile")
+	ErrLastProfile      = errors.New("cannot remove the only profile")
 )
 
 var nonAlphanumRE = regexp.MustCompile(`[^a-z0-9]+`)
@@ -299,4 +311,215 @@ func (s *Store) RenameSpeaker(oldName, newName string) error {
 		s.cfg.ActiveSpeaker = newName
 	}
 	return s.save()
+}
+
+// ===== Profiles =====
+
+// Profiles returns a snapshot of profiles. Falls back to the embedded factory
+// set when the config has no profiles defined.
+func (s *Store) Profiles() []Profile {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.cfg.Profiles) == 0 {
+		return FactoryProfiles()
+	}
+	return cloneProfiles(s.cfg.Profiles)
+}
+
+// ActiveProfile returns the name of the active profile. If active_profile is
+// empty or unknown, returns the first profile name.
+func (s *Store) ActiveProfile() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	profiles := s.cfg.Profiles
+	if len(profiles) == 0 {
+		profiles = factoryProfiles
+	}
+	if s.cfg.ActiveProfile != "" {
+		for _, p := range profiles {
+			if p.Name == s.cfg.ActiveProfile {
+				return p.Name
+			}
+		}
+	}
+	if len(profiles) > 0 {
+		return profiles[0].Name
+	}
+	return ""
+}
+
+// materializeProfilesLocked copies the factory set into config when no
+// profiles have been persisted yet. Caller must hold s.mu (write).
+func (s *Store) materializeProfilesLocked() {
+	if len(s.cfg.Profiles) == 0 {
+		s.cfg.Profiles = cloneProfiles(factoryProfiles)
+	}
+}
+
+// SetActiveProfile sets the active profile by name. Returns ErrUnknownProfile
+// if no saved profile matches name.
+func (s *Store) SetActiveProfile(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.materializeProfilesLocked()
+	for _, p := range s.cfg.Profiles {
+		if p.Name == name {
+			s.cfg.ActiveProfile = name
+			return s.save()
+		}
+	}
+	return ErrUnknownProfile
+}
+
+// AddProfile creates an empty profile (no stations, six empty preset slots).
+func (s *Store) AddProfile(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ErrEmptyName
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.materializeProfilesLocked()
+	for _, p := range s.cfg.Profiles {
+		if p.Name == name {
+			return ErrDuplicateProfile
+		}
+	}
+	s.cfg.Profiles = append(s.cfg.Profiles, Profile{
+		Name:     name,
+		Stations: []Station{},
+		Presets:  map[int]string{1: "", 2: "", 3: "", 4: "", 5: "", 6: ""},
+	})
+	return s.save()
+}
+
+// RenameProfile changes a profile's name. If renaming the active profile,
+// ActiveProfile is updated in the same locked save.
+func (s *Store) RenameProfile(oldName, newName string) error {
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		return ErrEmptyName
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.materializeProfilesLocked()
+	idx := -1
+	for i, p := range s.cfg.Profiles {
+		if p.Name == oldName {
+			idx = i
+		}
+		if p.Name == newName && p.Name != oldName {
+			return ErrDuplicateProfile
+		}
+	}
+	if idx < 0 {
+		return ErrUnknownProfile
+	}
+	wasActive := s.cfg.ActiveProfile == oldName
+	s.cfg.Profiles[idx].Name = newName
+	if wasActive {
+		s.cfg.ActiveProfile = newName
+	}
+	return s.save()
+}
+
+// RemoveProfile deletes a profile by name. Refuses to remove the active
+// profile or the last remaining profile.
+func (s *Store) RemoveProfile(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.materializeProfilesLocked()
+	if len(s.cfg.Profiles) <= 1 {
+		return ErrLastProfile
+	}
+	activeName := s.cfg.ActiveProfile
+	if activeName == "" {
+		activeName = s.cfg.Profiles[0].Name
+	}
+	if name == activeName {
+		return ErrActiveProfile
+	}
+	idx := -1
+	for i, p := range s.cfg.Profiles {
+		if p.Name == name {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return ErrUnknownProfile
+	}
+	s.cfg.Profiles = append(s.cfg.Profiles[:idx], s.cfg.Profiles[idx+1:]...)
+	return s.save()
+}
+
+// SaveProfile snapshots the current top-level Stations + Presets into the
+// named profile, overwriting whatever was there.
+func (s *Store) SaveProfile(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.materializeProfilesLocked()
+	idx := -1
+	for i, p := range s.cfg.Profiles {
+		if p.Name == name {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return ErrUnknownProfile
+	}
+	stationsCopy := append([]Station(nil), s.cfg.Stations...)
+	presetsCopy := map[int]string{}
+	for k, v := range s.cfg.Presets {
+		presetsCopy[k] = v
+	}
+	s.cfg.Profiles[idx].Stations = stationsCopy
+	s.cfg.Profiles[idx].Presets = presetsCopy
+	return s.save()
+}
+
+// LoadProfile replaces the current top-level Stations + Presets with a copy
+// of the named profile's contents.
+func (s *Store) LoadProfile(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	profiles := s.cfg.Profiles
+	if len(profiles) == 0 {
+		profiles = factoryProfiles
+	}
+	for _, p := range profiles {
+		if p.Name == name {
+			s.cfg.Stations = append([]Station(nil), p.Stations...)
+			s.cfg.Presets = map[int]string{}
+			for k, v := range p.Presets {
+				s.cfg.Presets[k] = v
+			}
+			return s.save()
+		}
+	}
+	return ErrUnknownProfile
+}
+
+// MaybeSeedFromFactory is called once at startup. If the config has no
+// stations, no presets, and no profiles, copy the PalmaSola factory profile's
+// stations and presets into the top-level config, so first-boot shows the
+// curated radio set. No-op otherwise.
+func (s *Store) MaybeSeedFromFactory() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.cfg.Stations) > 0 || len(s.cfg.Presets) > 0 || len(s.cfg.Profiles) > 0 {
+		return nil
+	}
+	for _, p := range factoryProfiles {
+		if p.Name == "PalmaSola" {
+			s.cfg.Stations = append([]Station(nil), p.Stations...)
+			s.cfg.Presets = map[int]string{}
+			for k, v := range p.Presets {
+				s.cfg.Presets[k] = v
+			}
+			return s.save()
+		}
+	}
+	return nil
 }

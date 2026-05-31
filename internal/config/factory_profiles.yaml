@@ -1,0 +1,52 @@
+profiles:
+  - name: PalmaSola
+    stations:
+      - id: rtbf-la-premiere
+        name: RTBF La Première
+        url: http://radios.rtbf.be/laprem1ere-128.mp3
+      - id: france-culture
+        name: France Culture
+        url: http://direct.franceculture.fr/live/franceculture-midfi.mp3
+      - id: france-inter
+        name: France Inter
+        url: http://direct.franceinter.fr/live/franceinter-midfi.mp3
+      - id: rne
+        name: RNE (Spain)
+        url: https://dispatcher.rndfnk.com/crtve/rne1/mad/mp3/high
+      - id: onda-cero
+        name: Onda Cero (Spain)
+        url: https://atres-live.ondacero.es/live/ondacero/bitrate_1.m3u8
+      - id: bbc-radio-one
+        name: BBC Radio One
+        url: http://as-hls-ww-live.akamaized.net/pool_01505109/live/ww/bbc_radio_one/bbc_radio_one.isml/bbc_radio_one-audio=96000.norewind.m3u8
+      - id: rtl
+        name: RTL
+        url: http://streamer-02.rtl.fr/rtl-1-44-128
+      - id: npr-news
+        name: NPR News
+        url: https://npr-ice.streamguys1.com/live.mp3
+    presets:
+      1: rtbf-la-premiere
+      2: france-culture
+      3: france-inter
+      4: rne
+      5: onda-cero
+      6: bbc-radio-one
+  - name: VertChasseur
+    stations: []
+    presets:
+      1: ""
+      2: ""
+      3: ""
+      4: ""
+      5: ""
+      6: ""
+  - name: Autres
+    stations: []
+    presets:
+      1: ""
+      2: ""
+      3: ""
+      4: ""
+      5: ""
+      6: ""
