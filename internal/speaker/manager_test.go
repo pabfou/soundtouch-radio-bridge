@@ -72,3 +72,35 @@ func TestManager_Status_offline(t *testing.T) {
 		t.Fatal("expected offline when speaker unreachable")
 	}
 }
+
+func TestSetTarget_SwapsHTTPClient(t *testing.T) {
+	srvA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`<info deviceID="aaa"></info>`))
+	}))
+	defer srvA.Close()
+	srvB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`<info deviceID="bbb"></info>`))
+	}))
+	defer srvB.Close()
+
+	addrA := strings.TrimPrefix(srvA.URL, "http://")
+	addrB := strings.TrimPrefix(srvB.URL, "http://")
+
+	store, err := config.NewStore(t.TempDir() + "/c.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := speaker.NewManagerForTest(addrA, "127.0.0.1:1", store)
+	if online, _ := m.Status(); !online {
+		t.Fatal("expected online against A")
+	}
+
+	if err := m.SetTarget(addrB); err != nil {
+		t.Fatalf("SetTarget: %v", err)
+	}
+
+	if online, _ := m.Status(); !online {
+		t.Fatal("expected online against B")
+	}
+}

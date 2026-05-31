@@ -10,13 +10,19 @@ import (
 
 // Discovered describes one speaker found via mDNS.
 type Discovered struct {
-	Name string
-	IP   string
+	Name string `json:"name"`
+	IP   string `json:"ip"`
 }
 
-// Discover browses _soundtouch._tcp on the LAN and returns every responder
-// up to timeout. The returned slice may be empty if no speakers answer.
-func Discover(ctx context.Context, timeout time.Duration) ([]Discovered, error) {
+// Discoverer browses the network for SoundTouch speakers.
+type Discoverer interface {
+	Discover(ctx context.Context, timeout time.Duration) ([]Discovered, error)
+}
+
+// MDNSDiscoverer uses Apple Bonjour / mDNS-SD via the grandcat/zeroconf library.
+type MDNSDiscoverer struct{}
+
+func (MDNSDiscoverer) Discover(ctx context.Context, timeout time.Duration) ([]Discovered, error) {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
 		return nil, fmt.Errorf("mdns: %w", err)
@@ -51,4 +57,11 @@ func Discover(ctx context.Context, timeout time.Duration) ([]Discovered, error) 
 			return found, nil
 		}
 	}
+}
+
+// Discover is preserved as a package-level wrapper so existing callers
+// (main.go bootstrap) keep working without modification. New code should
+// depend on the Discoverer interface.
+func Discover(ctx context.Context, timeout time.Duration) ([]Discovered, error) {
+	return MDNSDiscoverer{}.Discover(ctx, timeout)
 }

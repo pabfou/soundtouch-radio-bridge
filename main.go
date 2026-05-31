@@ -30,7 +30,7 @@ func localIPFor(target string) string {
 	return conn.LocalAddr().(*net.UDPAddr).IP.String()
 }
 
-//go:embed web/index.html
+//go:embed web
 var webFS embed.FS
 
 func main() {
@@ -41,6 +41,9 @@ func main() {
 	store, err := config.NewStore(*configPath)
 	if err != nil {
 		log.Fatalf("config: %v", err)
+	}
+	if err := store.MaybeSeedFromFactory(); err != nil {
+		log.Printf("factory seed failed: %v", err)
 	}
 
 	cfg := store.Get()
@@ -56,8 +59,10 @@ func main() {
 			log.Println("no speakers found on the LAN — set the speaker IP in config.yaml manually")
 		default:
 			spk := config.Speaker{Name: found[0].Name, IP: found[0].IP}
-			if err := store.SetSpeaker(spk); err != nil {
+			if err := store.AddSpeaker(spk); err != nil {
 				log.Printf("failed to save discovered speaker: %v", err)
+			} else if err := store.SetActive(spk.Name); err != nil {
+				log.Printf("failed to set active speaker: %v", err)
 			} else {
 				log.Printf("auto-discovered speaker %q at %s — saved to config", spk.Name, spk.IP)
 			}
@@ -85,7 +90,7 @@ func main() {
 
 	tuneIn := tunein.NewClient("")
 
-	handler := api.NewHandler(store, mgr, tuneIn)
+	handler := api.NewHandler(store, mgr, tuneIn, speaker.MDNSDiscoverer{})
 	mux := api.NewRouter(handler, webFS)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

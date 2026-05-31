@@ -29,6 +29,11 @@ func NewUPnPClient(addr string) *UPnPClient {
 	}
 }
 
+// Stop halts current playback via UPnP AVTransport Stop.
+func (u *UPnPClient) Stop() error {
+	return u.call("Stop", stopBody())
+}
+
 // Play stops any current playback, sets the URI, and starts playback.
 // The speaker probes streamURL with HEAD before playing; if HEAD returns an
 // error status, playback silently fails (state transitions to INVALID_SOURCE).

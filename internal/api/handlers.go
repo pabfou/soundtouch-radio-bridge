@@ -1,11 +1,15 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"soundtouch-radio-bridge/internal/config"
 	"soundtouch-radio-bridge/internal/hls"
@@ -13,20 +17,25 @@ import (
 	"soundtouch-radio-bridge/internal/tunein"
 )
 
+var discoverSF singleflight.Group
+
 type SpeakerManager interface {
 	Play(stationID string) error
+	Stop() error
 	Status() (online bool, nowPlaying string)
 	SyncPresets()
+	SetTarget(ip string) error
 }
 
 type Handler struct {
-	store   *config.Store
-	speaker SpeakerManager
-	tunein  *tunein.Client
+	store      *config.Store
+	speaker    SpeakerManager
+	tunein     *tunein.Client
+	discoverer speaker.Discoverer
 }
 
-func NewHandler(store *config.Store, speaker SpeakerManager, tuneIn *tunein.Client) *Handler {
-	return &Handler{store: store, speaker: speaker, tunein: tuneIn}
+func NewHandler(store *config.Store, spk SpeakerManager, tuneIn *tunein.Client, disc speaker.Discoverer) *Handler {
+	return &Handler{store: store, speaker: spk, tunein: tuneIn, discoverer: disc}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -126,6 +135,14 @@ func (h *Handler) Play(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (h *Handler) Stop(w http.ResponseWriter, r *http.Request) {
+	if err := h.speaker.Stop(); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	if q == "" {
@@ -208,4 +225,247 @@ var streamClient = &http.Client{
 		ResponseHeaderTimeout: 10 * time.Second,
 		IdleConnTimeout:       90 * time.Second,
 	},
+}
+
+// ===== Speaker management handlers =====
+
+func (h *Handler) ListSpeakers(w http.ResponseWriter, r *http.Request) {
+	active := ""
+	if a, ok := h.store.Active(); ok {
+		active = a.Name
+	}
+	resp := struct {
+		Active   string           `json:"active"`
+		Speakers []config.Speaker `json:"speakers"`
+	}{
+		Active:   active,
+		Speakers: h.store.Speakers(),
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) AddSpeakerHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	var req struct {
+		Name string `json:"name"`
+		IP   string `json:"ip"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.AddSpeaker(config.Speaker{Name: req.Name, IP: req.IP}); {
+	case err == nil:
+		writeJSON(w, http.StatusCreated, config.Speaker{Name: strings.TrimSpace(req.Name), IP: req.IP})
+	case errors.Is(err, config.ErrEmptyName), errors.Is(err, config.ErrInvalidIP):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, config.ErrDuplicateName):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) RemoveSpeakerHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	switch err := h.store.RemoveSpeaker(name); {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, config.ErrUnknownSpeaker):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, config.ErrActiveSpeaker):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) RenameSpeakerHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	oldName := r.PathValue("name")
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.RenameSpeaker(oldName, req.Name); {
+	case err == nil:
+		writeJSON(w, http.StatusOK, config.Speaker{Name: strings.TrimSpace(req.Name)})
+	case errors.Is(err, config.ErrEmptyName):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, config.ErrUnknownSpeaker):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, config.ErrDuplicateName):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) SetActiveSpeakerHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var newSpeaker config.Speaker
+	found := false
+	for _, sp := range h.store.Speakers() {
+		if sp.Name == req.Name {
+			newSpeaker = sp
+			found = true
+			break
+		}
+	}
+	if !found {
+		http.Error(w, "speaker not found", http.StatusNotFound)
+		return
+	}
+	if err := h.store.SetActive(req.Name); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := h.speaker.SetTarget(newSpeaker.IP); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"active": req.Name})
+}
+
+func (h *Handler) DiscoverHandler(w http.ResponseWriter, r *http.Request) {
+	v, err, _ := discoverSF.Do("discover", func() (any, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		return h.discoverer.Discover(ctx, 5*time.Second)
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	found, _ := v.([]speaker.Discovered)
+	if found == nil {
+		found = []speaker.Discovered{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"found": found})
+}
+
+// ===== Profile handlers =====
+
+func (h *Handler) ListProfilesHandler(w http.ResponseWriter, r *http.Request) {
+	resp := struct {
+		Active   string           `json:"active"`
+		Profiles []config.Profile `json:"profiles"`
+	}{
+		Active:   h.store.ActiveProfile(),
+		Profiles: h.store.Profiles(),
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) AddProfileHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.AddProfile(req.Name); {
+	case err == nil:
+		writeJSON(w, http.StatusCreated, map[string]string{"name": strings.TrimSpace(req.Name)})
+	case errors.Is(err, config.ErrEmptyName):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, config.ErrDuplicateProfile):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) RenameProfileHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	oldName := r.PathValue("name")
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.RenameProfile(oldName, req.Name); {
+	case err == nil:
+		writeJSON(w, http.StatusOK, map[string]string{"name": strings.TrimSpace(req.Name)})
+	case errors.Is(err, config.ErrEmptyName):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, config.ErrDuplicateProfile):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) RemoveProfileHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	switch err := h.store.RemoveProfile(name); {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, config.ErrActiveProfile), errors.Is(err, config.ErrLastProfile):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) SaveProfileHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	switch err := h.store.SaveProfile(name); {
+	case err == nil:
+		w.WriteHeader(http.StatusOK)
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) LoadProfileHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	switch err := h.store.LoadProfile(name); {
+	case err == nil:
+		h.speaker.SyncPresets()
+		w.WriteHeader(http.StatusOK)
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) SetActiveProfileHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.SetActiveProfile(req.Name); {
+	case err == nil:
+		writeJSON(w, http.StatusOK, map[string]string{"active": req.Name})
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
