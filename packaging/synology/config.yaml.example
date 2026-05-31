@@ -1,0 +1,16 @@
+speakers:
+  - name: Living Room
+    ip: 192.168.1.50              # change to your speaker's IP
+
+stations:
+  - id: france-inter
+    name: France Inter
+    url: http://direct.franceinter.fr/live/franceinter-midfi.mp3
+
+presets:
+  1: france-inter
+  2: null
+  3: null
+  4: null
+  5: null
+  6: null

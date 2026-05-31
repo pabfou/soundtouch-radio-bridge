@@ -1,0 +1,7 @@
+#!/bin/sh
+# Run before upgrade — preserve user config across upgrades.
+PKG_DIR="/var/packages/SoundTouchBridge/target"
+if [ -f "$PKG_DIR/etc/config.yaml" ]; then
+    cp "$PKG_DIR/etc/config.yaml" /tmp/soundtouchbridge-config-backup.yaml
+fi
+exit 0

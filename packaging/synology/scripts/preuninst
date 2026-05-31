@@ -1,0 +1,3 @@
+#!/bin/sh
+# Run before uninstall — the start-stop-status script handles stop.
+exit 0

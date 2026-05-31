@@ -1,0 +1,48 @@
+#!/bin/sh
+# DSM lifecycle hook for SoundTouch Bridge.
+
+PKG_DIR="/var/packages/SoundTouchBridge/target"
+BIN="$PKG_DIR/bin/bridge"
+CONFIG="$PKG_DIR/etc/config.yaml"
+PID_FILE="$PKG_DIR/var/bridge.pid"
+LOG_FILE="$PKG_DIR/var/bridge.log"
+ADDR=":8080"
+
+mkdir -p "$PKG_DIR/var"
+
+case "$1" in
+  start)
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      exit 0
+    fi
+    # Rotate the log if it gets large.
+    if [ -f "$LOG_FILE" ] && [ "$(stat -c %s "$LOG_FILE" 2>/dev/null)" -gt 5242880 ]; then
+      mv "$LOG_FILE" "$LOG_FILE.old"
+    fi
+    nohup "$BIN" --config "$CONFIG" --addr "$ADDR" >> "$LOG_FILE" 2>&1 &
+    echo $! > "$PID_FILE"
+    sleep 1
+    kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+    ;;
+  stop)
+    if [ -f "$PID_FILE" ]; then
+      kill "$(cat "$PID_FILE")" 2>/dev/null
+      sleep 1
+      kill -0 "$(cat "$PID_FILE")" 2>/dev/null && kill -9 "$(cat "$PID_FILE")" 2>/dev/null
+      rm -f "$PID_FILE"
+    fi
+    ;;
+  status)
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      exit 0
+    fi
+    exit 1
+    ;;
+  log)
+    echo "$LOG_FILE"
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|status|log}" >&2
+    exit 1
+    ;;
+esac

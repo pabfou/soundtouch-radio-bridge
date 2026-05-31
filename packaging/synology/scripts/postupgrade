@@ -1,0 +1,8 @@
+#!/bin/sh
+# Run after upgrade — restore user config saved by preupgrade.
+PKG_DIR="/var/packages/SoundTouchBridge/target"
+if [ -f /tmp/soundtouchbridge-config-backup.yaml ]; then
+    cp /tmp/soundtouchbridge-config-backup.yaml "$PKG_DIR/etc/config.yaml"
+    rm /tmp/soundtouchbridge-config-backup.yaml
+fi
+exit 0
