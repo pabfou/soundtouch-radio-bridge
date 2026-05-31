@@ -344,3 +344,119 @@ func (h *Handler) DiscoverHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"found": found})
 }
+
+// ===== Profile handlers =====
+
+func (h *Handler) ListProfilesHandler(w http.ResponseWriter, r *http.Request) {
+	resp := struct {
+		Active   string           `json:"active"`
+		Profiles []config.Profile `json:"profiles"`
+	}{
+		Active:   h.store.ActiveProfile(),
+		Profiles: h.store.Profiles(),
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) AddProfileHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.AddProfile(req.Name); {
+	case err == nil:
+		writeJSON(w, http.StatusCreated, map[string]string{"name": strings.TrimSpace(req.Name)})
+	case errors.Is(err, config.ErrEmptyName):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, config.ErrDuplicateProfile):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) RenameProfileHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	oldName := r.PathValue("name")
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.RenameProfile(oldName, req.Name); {
+	case err == nil:
+		writeJSON(w, http.StatusOK, map[string]string{"name": strings.TrimSpace(req.Name)})
+	case errors.Is(err, config.ErrEmptyName):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, config.ErrDuplicateProfile):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) RemoveProfileHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	switch err := h.store.RemoveProfile(name); {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, config.ErrActiveProfile), errors.Is(err, config.ErrLastProfile):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) SaveProfileHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	switch err := h.store.SaveProfile(name); {
+	case err == nil:
+		w.WriteHeader(http.StatusOK)
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) LoadProfileHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	switch err := h.store.LoadProfile(name); {
+	case err == nil:
+		h.speaker.SyncPresets()
+		w.WriteHeader(http.StatusOK)
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) SetActiveProfileHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { io.Copy(io.Discard, r.Body); r.Body.Close() }()
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := h.store.SetActiveProfile(req.Name); {
+	case err == nil:
+		writeJSON(w, http.StatusOK, map[string]string{"active": req.Name})
+	case errors.Is(err, config.ErrUnknownProfile):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}

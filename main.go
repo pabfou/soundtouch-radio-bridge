@@ -42,6 +42,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	if err := store.MaybeSeedFromFactory(); err != nil {
+		log.Printf("factory seed failed: %v", err)
+	}
 
 	cfg := store.Get()
 	if len(cfg.Speakers) == 0 {
