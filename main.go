@@ -85,7 +85,7 @@ func main() {
 
 	tuneIn := tunein.NewClient("")
 
-	handler := api.NewHandler(store, mgr, tuneIn)
+	handler := api.NewHandler(store, mgr, tuneIn, speaker.MDNSDiscoverer{})
 	mux := api.NewRouter(handler, webFS)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

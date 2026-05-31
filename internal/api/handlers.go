@@ -17,16 +17,18 @@ type SpeakerManager interface {
 	Play(stationID string) error
 	Status() (online bool, nowPlaying string)
 	SyncPresets()
+	SetTarget(ip string) error
 }
 
 type Handler struct {
-	store   *config.Store
-	speaker SpeakerManager
-	tunein  *tunein.Client
+	store      *config.Store
+	speaker    SpeakerManager
+	tunein     *tunein.Client
+	discoverer speaker.Discoverer
 }
 
-func NewHandler(store *config.Store, speaker SpeakerManager, tuneIn *tunein.Client) *Handler {
-	return &Handler{store: store, speaker: speaker, tunein: tuneIn}
+func NewHandler(store *config.Store, spk SpeakerManager, tuneIn *tunein.Client, disc speaker.Discoverer) *Handler {
+	return &Handler{store: store, speaker: spk, tunein: tuneIn, discoverer: disc}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

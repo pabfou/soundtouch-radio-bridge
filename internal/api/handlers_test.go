@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"io"
@@ -9,14 +10,17 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"soundtouch-radio-bridge/internal/api"
 	"soundtouch-radio-bridge/internal/config"
+	"soundtouch-radio-bridge/internal/speaker"
 )
 
 type mockManager struct {
 	playedID string
 	online   bool
+	targetIP string
 }
 
 func (m *mockManager) Play(stationID string) error {
@@ -30,18 +34,33 @@ func (m *mockManager) Status() (bool, string) {
 
 func (m *mockManager) SyncPresets() {}
 
-func newTestServer(t *testing.T) (*httptest.Server, *config.Store, *mockManager) {
+func (m *mockManager) SetTarget(ip string) error {
+	m.targetIP = ip
+	return nil
+}
+
+type mockDiscoverer struct {
+	results []speaker.Discovered
+	err     error
+}
+
+func (d mockDiscoverer) Discover(ctx context.Context, timeout time.Duration) ([]speaker.Discovered, error) {
+	return d.results, d.err
+}
+
+func newTestServer(t *testing.T) (*httptest.Server, *config.Store, *mockManager, *mockDiscoverer) {
 	t.Helper()
 	store, _ := config.NewStore(filepath.Join(t.TempDir(), "config.yaml"))
 	mgr := &mockManager{online: true}
-	handler := api.NewHandler(store, mgr, nil)
+	disc := &mockDiscoverer{}
+	handler := api.NewHandler(store, mgr, nil, disc)
 	srv := httptest.NewServer(api.NewRouter(handler, embed.FS{}))
 	t.Cleanup(srv.Close)
-	return srv, store, mgr
+	return srv, store, mgr, disc
 }
 
 func TestAddStation(t *testing.T) {
-	srv, store, _ := newTestServer(t)
+	srv, store, _, _ := newTestServer(t)
 
 	body, _ := json.Marshal(map[string]string{"name": "BBC Radio 4", "url": "http://example.com/stream"})
 	resp, err := http.Post(srv.URL+"/api/stations", "application/json", bytes.NewReader(body))
@@ -60,7 +79,7 @@ func TestAddStation(t *testing.T) {
 }
 
 func TestListStations(t *testing.T) {
-	srv, store, _ := newTestServer(t)
+	srv, store, _, _ := newTestServer(t)
 	_ = store.AddStation(config.Station{Name: "Test FM", URL: "http://example.com"})
 
 	resp, err := http.Get(srv.URL + "/api/stations")
@@ -76,7 +95,7 @@ func TestListStations(t *testing.T) {
 }
 
 func TestAssignPreset(t *testing.T) {
-	srv, store, _ := newTestServer(t)
+	srv, store, _, _ := newTestServer(t)
 	_ = store.AddStation(config.Station{Name: "Test FM", URL: "http://example.com"})
 	cfg := store.Get()
 	stationID := cfg.Stations[0].ID
@@ -97,7 +116,7 @@ func TestAssignPreset(t *testing.T) {
 }
 
 func TestPlayStation(t *testing.T) {
-	srv, store, mgr := newTestServer(t)
+	srv, store, mgr, _ := newTestServer(t)
 	_ = store.AddStation(config.Station{Name: "Test FM", URL: "http://example.com"})
 	cfg := store.Get()
 	stationID := cfg.Stations[0].ID
@@ -117,7 +136,7 @@ func TestPlayStation(t *testing.T) {
 }
 
 func TestDeleteStation(t *testing.T) {
-	srv, store, _ := newTestServer(t)
+	srv, store, _, _ := newTestServer(t)
 	_ = store.AddStation(config.Station{Name: "Test FM", URL: "http://example.com"})
 	cfg := store.Get()
 	id := cfg.Stations[0].ID
@@ -138,7 +157,7 @@ func TestDeleteStation(t *testing.T) {
 }
 
 func TestStatus(t *testing.T) {
-	srv, _, _ := newTestServer(t)
+	srv, _, _, _ := newTestServer(t)
 	resp, err := http.Get(srv.URL + "/api/status")
 	if err != nil {
 		t.Fatal(err)
