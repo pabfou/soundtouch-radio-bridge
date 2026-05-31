@@ -86,15 +86,21 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
     border-radius: 980px;
-    background: var(--card);
+    background: transparent;
     color: var(--text-secondary);
-    box-shadow: var(--shadow);
+    border: none;
     text-decoration: none;
-    font-size: 18px;
+    padding: 0;
+    cursor: pointer;
     transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .icon-btn svg {
+    width: 24px;
+    height: 24px;
+    display: block;
   }
   .icon-btn:hover {
     background: var(--accent-soft);
@@ -598,14 +604,14 @@
 <div class="container">
   <div class="header">
     <h1>SoundTouch Radio</h1>
-    <div class="header-actions">
-      <span id="badge" class="badge offline">Offline</span>
-      <a href="/settings" id="settings-btn" aria-label="Settings" class="icon-btn" title="Settings">⚙</a>
-    </div>
+    <span id="badge" class="badge offline">Offline</span>
   </div>
 
   <div class="card">
-    <div class="card-header"><span class="card-title">Now Playing</span></div>
+    <div class="card-header">
+      <span class="card-title">Now Playing</span>
+      <a href="/settings" aria-label="Speaker settings" class="icon-btn" title="Speaker settings"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></a>
+    </div>
     <div class="now-playing">
       <div id="np-icon" class="np-icon idle">📻</div>
       <div class="np-info">
@@ -617,7 +623,10 @@
   </div>
 
   <div class="card">
-    <div class="card-header"><span class="card-title">Presets</span></div>
+    <div class="card-header">
+      <span class="card-title">Presets</span>
+      <button class="icon-btn" id="manage-profiles-btn" aria-label="Manage station profiles" title="Manage station profiles" type="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
+    </div>
     <div class="preset-grid" id="preset-grid"></div>
   </div>
 
