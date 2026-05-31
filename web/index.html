@@ -337,6 +337,8 @@
   .btn-primary:hover { background: var(--accent-hover); }
   .btn-secondary { background: rgba(0, 0, 0, 0.06); color: var(--text); }
   .btn-secondary:hover { background: rgba(0, 0, 0, 0.1); }
+  .btn-ghost { background: transparent; color: var(--accent); }
+  .btn-ghost:hover { background: var(--accent-soft); color: var(--accent); }
   .btn-danger { background: transparent; color: var(--danger); }
   .btn-danger:hover { background: rgba(255, 59, 48, 0.1); }
   .btn-play { background: var(--success); color: white; padding: 7px 12px; }
@@ -633,7 +635,7 @@
   <div class="card">
     <div class="card-header">
       <span class="card-title">Stations</span>
-      <button class="btn btn-secondary" onclick="focusAddInput()">+ Add</button>
+      <button class="btn btn-ghost" onclick="focusAddInput()">+ Add</button>
     </div>
     <div class="card-body tight" id="station-list"></div>
   </div>
@@ -643,7 +645,7 @@
     <div class="card-body">
       <div class="add-row">
         <input class="input" id="add-input" placeholder="Paste a stream URL or search TuneIn…" onkeydown="if(event.key==='Enter')handleAddInput()">
-        <button class="btn btn-primary btn-large" onclick="handleAddInput()">Go</button>
+        <button class="btn btn-ghost btn-large" onclick="handleAddInput()">Go</button>
       </div>
       <div class="field-help">Paste an MP3/AAC/HLS URL to add directly, or type a station name to search TuneIn.</div>
       <div id="pending-add" class="pending-add" style="display:none"></div>
