@@ -24,8 +24,8 @@ type Station struct {
 }
 
 type Speaker struct {
-	Name string `yaml:"name"`
-	IP   string `yaml:"ip"`
+	Name string `yaml:"name" json:"name"`
+	IP   string `yaml:"ip" json:"ip"`
 }
 
 type Config struct {

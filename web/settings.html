@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings · SoundTouch Radio Bridge</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --text-secondary: #6e6e73;
+    --text-tertiary: #86868b;
+    --divider: #d2d2d7;
+    --divider-soft: #e5e5e7;
+    --accent: #0071e3;
+    --accent-soft: rgba(0, 113, 227, 0.1);
+    --danger: #ff3b30;
+    --success: #34c759;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    line-height: 1.47;
+  }
+  .container { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding: 0 4px; }
+  .header h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.022em; }
+  .back-link { color: var(--accent); text-decoration: none; font-size: 15px; }
+  .card { background: var(--card); border-radius: 14px; padding: 18px 20px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .card-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); margin-bottom: 10px; }
+  .row { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--divider-soft); }
+  .row:last-child { border-bottom: none; }
+  .row .name { flex: 1; font-size: 16px; }
+  .row .ip { color: var(--text-secondary); font-size: 14px; margin-right: 12px; font-variant-numeric: tabular-nums; }
+  .row .actions { display: flex; gap: 6px; }
+  .row.active .name { font-weight: 600; }
+  .radio { width: 18px; height: 18px; border: 2px solid var(--divider); border-radius: 50%; margin-right: 12px; cursor: pointer; flex-shrink: 0; }
+  .radio.checked { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 5px, transparent 6px); }
+  .icon-action { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; color: var(--text-secondary); font-size: 15px; }
+  .icon-action:hover:not([disabled]) { background: var(--accent-soft); color: var(--accent); }
+  .icon-action[disabled] { color: var(--text-tertiary); cursor: not-allowed; opacity: 0.5; }
+  .btn { background: var(--accent); color: white; border: none; border-radius: 980px; padding: 8px 16px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn:hover { background: #0077ed; }
+  .btn.secondary { background: var(--card); color: var(--accent); box-shadow: var(--shadow); }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .empty { color: var(--text-tertiary); font-size: 14px; padding: 12px 0; text-align: center; }
+  .toast { position: fixed; top: 16px; right: 16px; background: var(--card); padding: 12px 16px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); font-size: 14px; max-width: 320px; opacity: 0; transform: translateY(-10px); transition: opacity 0.2s ease, transform 0.2s ease; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { color: var(--danger); }
+  input[type=text] { font: inherit; padding: 6px 10px; border: 1px solid var(--divider); border-radius: 8px; flex: 1; max-width: 240px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Settings</h1>
+    <a href="/" class="back-link">← Back</a>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Active Speaker</div>
+    <div id="active-row" class="empty">Loading…</div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <div class="card-title" style="margin-bottom: 0;">Saved Speakers</div>
+      <button id="scan-btn" class="btn secondary">Scan network</button>
+    </div>
+    <div id="saved-list"></div>
+  </div>
+
+  <div class="card" id="discovered-card" style="display:none">
+    <div class="card-title">Discovered on network</div>
+    <div id="discovered-list"></div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+const toast = (msg, isError) => {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+};
+
+let activeName = '';
+let saved = [];
+let discovered = [];
+
+async function loadSpeakers() {
+  const res = await fetch('/api/speakers');
+  const data = await res.json();
+  activeName = data.active || '';
+  saved = data.speakers || [];
+  render();
+}
+
+function escape(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+function render() {
+  const active = saved.find(s => s.name === activeName);
+  const activeRow = $('#active-row');
+  if (active) {
+    activeRow.classList.remove('empty');
+    activeRow.innerHTML = `
+      <div class="row active">
+        <div class="radio checked"></div>
+        <div class="name">${escape(active.name)}</div>
+        <div class="ip">${escape(active.ip)}</div>
+      </div>`;
+  } else {
+    activeRow.className = 'empty';
+    activeRow.textContent = 'No speaker selected';
+  }
+
+  const savedEl = $('#saved-list');
+  if (saved.length === 0) {
+    savedEl.innerHTML = '<div class="empty">No saved speakers</div>';
+  } else {
+    savedEl.innerHTML = saved.map(s => `
+      <div class="row${s.name === activeName ? ' active' : ''}" data-name="${escape(s.name)}">
+        <div class="radio${s.name === activeName ? ' checked' : ''}" data-action="activate"></div>
+        <div class="name" data-action="display">${escape(s.name)}</div>
+        <div class="ip">${escape(s.ip)}</div>
+        <div class="actions">
+          <button class="icon-action" data-action="rename" title="Rename">✏</button>
+          <button class="icon-action" data-action="remove" title="Remove" ${s.name === activeName ? 'disabled' : ''}>🗑</button>
+        </div>
+      </div>`).join('');
+  }
+
+  const newOnes = discovered.filter(d => !saved.some(s => s.ip === d.ip));
+  $('#discovered-card').style.display = newOnes.length ? 'block' : 'none';
+  $('#discovered-list').innerHTML = newOnes.map(d => `
+    <div class="row" data-name="${escape(d.name)}" data-ip="${escape(d.ip)}">
+      <div class="name">${escape(d.name)}</div>
+      <div class="ip">${escape(d.ip)}</div>
+      <div class="actions">
+        <button class="btn secondary" data-action="add">Add</button>
+      </div>
+    </div>`).join('');
+}
+
+document.body.addEventListener('click', async (e) => {
+  const action = e.target.dataset.action;
+  if (!action) return;
+  const row = e.target.closest('[data-name]');
+  if (!row) return;
+  const name = row.dataset.name;
+
+  if (action === 'activate') {
+    if (name === activeName) return;
+    const res = await fetch('/api/speakers/active', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name}),
+    });
+    if (res.ok) { await loadSpeakers(); toast('Active speaker switched'); }
+    else toast('Switch failed: ' + (await res.text()), true);
+    return;
+  }
+  if (action === 'remove') {
+    if (!confirm(`Remove speaker "${name}"?`)) return;
+    const res = await fetch('/api/speakers/' + encodeURIComponent(name), {method: 'DELETE'});
+    if (res.ok) { await loadSpeakers(); toast('Removed'); }
+    else toast('Remove failed: ' + (await res.text()), true);
+    return;
+  }
+  if (action === 'rename') {
+    const nameEl = row.querySelector('.name');
+    const current = name;
+    nameEl.innerHTML = `<input type="text" value="${escape(current)}" data-edit="1">`;
+    const input = nameEl.querySelector('input');
+    input.focus();
+    input.select();
+    let done = false;
+    const commit = async () => {
+      if (done) return;
+      done = true;
+      const newName = input.value.trim();
+      if (!newName || newName === current) { await loadSpeakers(); return; }
+      const res = await fetch('/api/speakers/' + encodeURIComponent(current), {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: newName}),
+      });
+      if (res.ok) { await loadSpeakers(); toast('Renamed'); }
+      else { toast('Rename failed: ' + (await res.text()), true); await loadSpeakers(); }
+    };
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') commit();
+      else if (ev.key === 'Escape') { done = true; loadSpeakers(); }
+    });
+    input.addEventListener('blur', commit);
+    return;
+  }
+  if (action === 'add') {
+    const ip = row.dataset.ip;
+    const res = await fetch('/api/speakers', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, ip}),
+    });
+    if (res.ok) { await loadSpeakers(); toast('Added'); }
+    else toast('Add failed: ' + (await res.text()), true);
+    return;
+  }
+});
+
+$('#scan-btn').addEventListener('click', async () => {
+  const btn = $('#scan-btn');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Scanning…';
+  try {
+    const res = await fetch('/api/discover', {method: 'POST'});
+    const data = await res.json();
+    discovered = data.found || [];
+    render();
+    if (discovered.length === 0) toast('No speakers found');
+    else toast(`Found ${discovered.length} speaker${discovered.length === 1 ? '' : 's'}`);
+  } catch (err) {
+    toast('Scan failed: ' + err, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
+loadSpeakers();
+</script>
+</body>
+</html>

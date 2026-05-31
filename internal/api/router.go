@@ -29,6 +29,9 @@ func NewRouter(h *Handler, webFS embed.FS) *http.ServeMux {
 
 	sub, err := fs.Sub(webFS, "web")
 	if err == nil {
+		mux.HandleFunc("GET /settings", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFileFS(w, r, sub, "settings.html")
+		})
 		mux.Handle("GET /", http.FileServer(http.FS(sub)))
 	}
 	return mux
