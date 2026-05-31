@@ -77,6 +77,33 @@
   }
   .badge.offline::before { background: var(--danger); }
 
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 980px;
+    background: var(--card);
+    color: var(--text-secondary);
+    box-shadow: var(--shadow);
+    text-decoration: none;
+    font-size: 18px;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .icon-btn:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .icon-btn:active {
+    transform: scale(0.96);
+  }
+
   /* Cards */
   .card {
     background: var(--card);
@@ -571,7 +598,10 @@
 <div class="container">
   <div class="header">
     <h1>SoundTouch Radio</h1>
-    <span id="badge" class="badge offline">Offline</span>
+    <div class="header-actions">
+      <span id="badge" class="badge offline">Offline</span>
+      <a href="/settings" id="settings-btn" aria-label="Settings" class="icon-btn" title="Settings">⚙</a>
+    </div>
   </div>
 
   <div class="card">
